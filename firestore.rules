@@ -1,0 +1,30 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Empresas e Locais cadastrados pelas empresas
+    match /places/{placeId} {
+      allow read: if true;
+      allow create: if request.resource.data.name is string;
+      allow update, delete: if true;
+    }
+
+    // BairrosCity: Notícias, Problemas Comunitários e Eventos por Bairro
+    match /neighborhood_posts/{postId} {
+      allow read: if true;
+      allow create: if request.resource.data.title is string;
+      allow update, delete: if true;
+    }
+
+    // Avaliações e comentários
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if true;
+    }
+
+    // Usuários e empresas cadastradas
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+  }
+}

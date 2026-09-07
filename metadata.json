@@ -1,0 +1,7 @@
+{
+  "name": "BairrosCity - Mapa & Comunidade Regional",
+  "description": "Plataforma regional com mapa para empresas cadastrarem seus negócios, moradores avaliarem com estrelas, e aba BairrosCity com notícias, problemas e eventos por bairro.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

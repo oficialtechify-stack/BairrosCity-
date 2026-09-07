@@ -1,0 +1,111 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Perfil de usuário (morador ou empresa) cadastrado na plataforma",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "ID do usuário no Firebase Auth ou gerado localmente"
+        },
+        "name": {
+          "type": "string",
+          "description": "Nome completo ou razão social"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Endereço de e-mail do usuário"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["morador", "empresa"],
+          "description": "Papel do usuário"
+        },
+        "neighborhood": {
+          "type": "string",
+          "description": "Bairro de atuação ou residência"
+        },
+        "companyName": {
+          "type": "string",
+          "description": "Nome fantasia da empresa se for empresa"
+        },
+        "phone": {
+          "type": "string",
+          "description": "Telefone ou WhatsApp de contato"
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "Foto de perfil do Google"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Data de criação em ISO format"
+        }
+      },
+      "required": ["id", "name", "email", "role", "neighborhood"]
+    },
+    "Place": {
+      "title": "Place",
+      "description": "Empresa, comércio ou evento cadastrado no mapa regional",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "subCategory": { "type": "string" },
+        "description": { "type": "string" },
+        "address": { "type": "string" },
+        "neighborhood": { "type": "string" },
+        "city": { "type": "string" },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "phone": { "type": "string" },
+        "whatsapp": { "type": "string" },
+        "instagram": { "type": "string" },
+        "website": { "type": "string" },
+        "hours": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "rating": { "type": "number" },
+        "reviewsCount": { "type": "number" },
+        "isEvent": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "category", "neighborhood", "lat", "lng"]
+    },
+    "NeighborhoodPost": {
+      "title": "NeighborhoodPost",
+      "description": "Notícia, problema comunitário ou evento na aba BairrosCity",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "neighborhood": { "type": "string" },
+        "type": { "type": "string", "enum": ["noticia", "problema", "evento", "discussao"] },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "author": { "type": "string" },
+        "authorRole": { "type": "string" },
+        "date": { "type": "string" },
+        "status": { "type": "string" },
+        "upvotes": { "type": "number" },
+        "commentsCount": { "type": "number" }
+      },
+      "required": ["id", "neighborhood", "type", "title", "content", "author"]
+    }
+  },
+  "firestore": {
+    "/places/{placeId}": {
+      "schema": "Place",
+      "description": "Empresas e comércios locais cadastrados no mapa"
+    },
+    "/neighborhood_posts/{postId}": {
+      "schema": "NeighborhoodPost",
+      "description": "Feed comunitário do BairrosCity por bairro"
+    },
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Perfis de usuários, moradores e empresas cadastradas"
+    }
+  }
+}

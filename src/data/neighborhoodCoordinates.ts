@@ -1,0 +1,107 @@
+export interface NeighborhoodGeo {
+  name: string;
+  lat: number;
+  lng: number;
+  zoom: number;
+  city: string;
+  description?: string;
+}
+
+export const NEIGHBORHOOD_COORDINATES: Record<string, NeighborhoodGeo> = {
+  'Curado I': { name: 'Curado I', lat: -8.0820, lng: -35.0010, zoom: 15, city: 'Jaboatão dos Guararapes', description: 'Região do Curado I' },
+  'Curado II': { name: 'Curado II', lat: -8.0770, lng: -34.9960, zoom: 15, city: 'Jaboatão dos Guararapes', description: 'Região do Curado II' },
+  'Curado III': { name: 'Curado III', lat: -8.0710, lng: -34.9920, zoom: 15, city: 'Jaboatão dos Guararapes', description: 'Região do Curado III' },
+  'Curado IV': { name: 'Curado IV', lat: -8.0645, lng: -34.9855, zoom: 15, city: 'Jaboatão dos Guararapes', description: 'Comércio, feiras e residências' },
+  'Curado V': { name: 'Curado V', lat: -8.0580, lng: -34.9800, zoom: 15, city: 'Jaboatão dos Guararapes', description: 'Região do Curado V' },
+  'Tejipió': { name: 'Tejipió', lat: -8.0890, lng: -34.9570, zoom: 15, city: 'Recife', description: 'Bairro histórico e estação Tejipió' },
+  'Totó': { name: 'Totó', lat: -8.0930, lng: -34.9690, zoom: 15, city: 'Recife', description: 'Zona Oeste de Recife' },
+  'Coqueiral': { name: 'Coqueiral', lat: -8.0830, lng: -34.9510, zoom: 15, city: 'Recife', description: 'Próximo a Tejipió e Jardim São Paulo' },
+  'Jardim São Paulo': { name: 'Jardim São Paulo', lat: -8.0790, lng: -34.9420, zoom: 15, city: 'Recife', description: 'Comércio ativo e praças' },
+  'San Martin': { name: 'San Martin', lat: -8.0690, lng: -34.9330, zoom: 15, city: 'Recife', description: 'Zona Oeste de Recife' },
+  'Várzea': { name: 'Várzea', lat: -8.0440, lng: -34.9680, zoom: 15, city: 'Recife', description: 'Polo cultural e polo UFPE' },
+  'Caxangá': { name: 'Caxangá', lat: -8.0310, lng: -34.9600, zoom: 15, city: 'Recife', description: 'Avenida Caxangá e entorno' },
+  'Cidade Universitária': { name: 'Cidade Universitária', lat: -8.0520, lng: -34.9530, zoom: 15, city: 'Recife', description: 'Campus UFPE e hospital das clínicas' },
+  'Madalena': { name: 'Madalena', lat: -8.0560, lng: -34.9080, zoom: 15, city: 'Recife', description: 'Mercado da Madalena e comércio' },
+  'Boa Viagem': { name: 'Boa Viagem', lat: -8.1250, lng: -34.9020, zoom: 15, city: 'Recife', description: 'Orla e polo gastronômico' },
+  'Areias': { name: 'Areias', lat: -8.0950, lng: -34.9370, zoom: 15, city: 'Recife', description: 'Comércio e residências' },
+  'Afogados': { name: 'Afogados', lat: -8.0740, lng: -34.9080, zoom: 15, city: 'Recife', description: 'Mercado de Afogados e comércio' },
+  'Barro': { name: 'Barro', lat: -8.0910, lng: -34.9450, zoom: 15, city: 'Recife', description: 'Terminal de Integração do Barro' },
+  'Recife Antigo': { name: 'Recife Antigo', lat: -8.0630, lng: -34.8710, zoom: 15, city: 'Recife', description: 'Marco Zero e Porto Digital' },
+  'Boa Vista': { name: 'Boa Vista', lat: -8.0580, lng: -34.8890, zoom: 15, city: 'Recife', description: 'Centro do Recife' },
+  'Derby': { name: 'Derby', lat: -8.0520, lng: -34.8980, zoom: 15, city: 'Recife', description: 'Praça do Derby e clínicas' },
+  'Torre': { name: 'Torre', lat: -8.0470, lng: -34.9120, zoom: 15, city: 'Recife', description: 'Zona Norte' },
+  'Graças': { name: 'Graças', lat: -8.0420, lng: -34.9010, zoom: 15, city: 'Recife', description: 'Zona Norte' },
+  'Espinheiro': { name: 'Espinheiro', lat: -8.0400, lng: -34.8940, zoom: 15, city: 'Recife', description: 'Zona Norte' },
+  'Casa Amarela': { name: 'Casa Amarela', lat: -8.0240, lng: -34.9180, zoom: 15, city: 'Recife', description: 'Feira e mercado público' },
+  'Casa Forte': { name: 'Casa Forte', lat: -8.0310, lng: -34.9210, zoom: 15, city: 'Recife', description: 'Praça de Casa Forte' },
+  'Jaboatão Centro': { name: 'Jaboatão Centro', lat: -8.1120, lng: -35.0150, zoom: 15, city: 'Jaboatão dos Guararapes', description: 'Centro histórico' },
+  'Piedade': { name: 'Piedade', lat: -8.1680, lng: -34.9180, zoom: 15, city: 'Jaboatão dos Guararapes', description: 'Praia de Piedade e comércio' },
+  'Candeias': { name: 'Candeias', lat: -8.1960, lng: -34.9250, zoom: 15, city: 'Jaboatão dos Guararapes', description: 'Litoral sul' },
+  'Camaragibe': { name: 'Camaragibe', lat: -8.0210, lng: -34.9810, zoom: 15, city: 'Camaragibe', description: 'Avenida Belmino Correia e centro' },
+};
+
+// Popular shortcuts inspired by Google Maps
+export const DEFAULT_SEARCH_SHORTCUTS = [
+  {
+    id: 'militar',
+    type: 'shortcut' as const,
+    title: 'Comando Militar do Nordeste (CMNE)',
+    subtitle: 'Rodovia BR-232, Km 06 - Curado',
+    icon: 'briefcase',
+    lat: -8.0772,
+    lng: -34.9821,
+  },
+  {
+    id: 'museu',
+    type: 'shortcut' as const,
+    title: 'Museus (Instituto & Oficina Brennand)',
+    subtitle: 'Complexos culturais históricos na Várzea',
+    icon: 'hotel',
+    lat: -8.0649,
+    lng: -34.9634,
+  },
+  {
+    id: 'upas',
+    type: 'shortcut' as const,
+    title: 'UPAs & Hospitais Públicos',
+    subtitle: 'UPA Curado, Hospital das Clínicas e Otávio de Freitas',
+    icon: 'briefcase',
+    lat: -8.0776,
+    lng: -34.9962,
+  },
+  {
+    id: 'estacao',
+    type: 'shortcut' as const,
+    title: 'Estações & Rodoviária (TIP e Metrô)',
+    subtitle: 'Terminal TIP e Estação Tejipió',
+    icon: 'home',
+    lat: -8.0755,
+    lng: -34.9875,
+  },
+  {
+    id: 'arenas',
+    type: 'shortcut' as const,
+    title: 'Arena de Pernambuco & Estádios',
+    subtitle: 'Complexo esportivo e grandes eventos',
+    icon: 'hotel',
+    lat: -8.0267,
+    lng: -35.0084,
+  },
+  {
+    id: 'shopping',
+    type: 'category' as const,
+    title: 'Shopping Centers (Camará e Recife)',
+    subtitle: 'Compras, alimentação e lazer',
+    icon: 'shopping',
+    category: 'shopping',
+  },
+  {
+    id: 'escolas',
+    type: 'shortcut' as const,
+    title: 'Escolas & Faculdades (CIn UFPE & Colégio Militar)',
+    subtitle: 'Polo de tecnologia e educação',
+    icon: 'briefcase',
+    lat: -8.0558,
+    lng: -34.9515,
+  },
+];
