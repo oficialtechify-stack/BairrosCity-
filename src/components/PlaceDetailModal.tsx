@@ -17,6 +17,7 @@ import {
   Navigation,
   CheckCircle2,
   Share2,
+  ShoppingBag,
 } from 'lucide-react';
 
 interface PlaceDetailModalProps {
@@ -32,9 +33,7 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
   onAddReview,
   onCenterOnMap,
 }) => {
-  if (!place) return null;
-
-  const categoryMeta = CATEGORY_CONFIG[place.category] || CATEGORY_CONFIG.restaurant;
+  const categoryMeta = place ? (CATEGORY_CONFIG[place.category] || CATEGORY_CONFIG.restaurant) : CATEGORY_CONFIG.restaurant;
 
   // New review form state
   const [rating, setRating] = useState<number>(5);
@@ -73,6 +72,7 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
   };
 
   const handleShare = () => {
+    if (!place) return;
     if (navigator.clipboard) {
       navigator.clipboard.writeText(
         `Confira ${place.name} em ${place.neighborhood} no BairroMap!`
@@ -81,6 +81,8 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
       setTimeout(() => setCopiedLink(false), 2000);
     }
   };
+
+  if (!place) return null;
 
   // Compute rating distribution
   const ratingsCount = [5, 4, 3, 2, 1].map((stars) => {
@@ -264,6 +266,69 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
               </div>
             </div>
           </div>
+
+          {/* PRODUCTS & CATALOG SECTION */}
+          {place.productsOrServices && place.productsOrServices.length > 0 && (
+            <div className="pt-2">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <ShoppingBag className="w-4 h-4 text-emerald-600" />
+                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                    Catálogo de Produtos & Serviços ({place.productsOrServices.length})
+                  </h4>
+                </div>
+                <span className="text-[11px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                  Cardápio Disponível
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {place.productsOrServices.map((prod) => (
+                  <div
+                    key={prod.id}
+                    className="p-3 rounded-2xl bg-white border border-slate-200 shadow-xs hover:border-emerald-300 transition-colors flex gap-3 items-center justify-between"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      {prod.imageUrl ? (
+                        <img
+                          src={prod.imageUrl}
+                          alt={prod.name}
+                          className="w-12 h-12 rounded-xl object-cover border border-slate-100 shrink-0"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 shrink-0">
+                          <ShoppingBag className="w-5 h-5" />
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-slate-900 truncate">{prod.name}</div>
+                        {prod.description && (
+                          <div className="text-[11px] text-slate-500 line-clamp-1">{prod.description}</div>
+                        )}
+                        {prod.price && (
+                          <div className="text-xs font-black text-emerald-600 mt-0.5">{prod.price}</div>
+                        )}
+                      </div>
+                    </div>
+
+                    {place.whatsapp && (
+                      <a
+                        href={`https://wa.me/55${place.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(
+                          `Olá! Vi o produto "${prod.name}" (${prod.price || ''}) no BairroMap e gostaria de pedir.`
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[11px] shrink-0 border border-emerald-200 transition-colors flex items-center gap-1"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" />
+                        <span>Pedir</span>
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Event Specific Date Block */}
           {place.isEvent && (

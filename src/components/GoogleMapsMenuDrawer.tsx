@@ -10,8 +10,11 @@ import {
   Layers,
   Calendar,
   Phone,
-  ShieldCheck
+  ShieldCheck,
+  Building2,
+  User
 } from 'lucide-react';
+import { UserProfile } from '../types';
 
 interface GoogleMapsMenuDrawerProps {
   isOpen: boolean;
@@ -20,6 +23,9 @@ interface GoogleMapsMenuDrawerProps {
   totalEvents: number;
   onOpenRegister: () => void;
   onSelectCategory: (cat: any) => void;
+  currentUser?: UserProfile | null;
+  onOpenCompanyManager?: () => void;
+  onOpenResidentProfile?: () => void;
 }
 
 export const GoogleMapsMenuDrawer: React.FC<GoogleMapsMenuDrawerProps> = ({
@@ -29,6 +35,9 @@ export const GoogleMapsMenuDrawer: React.FC<GoogleMapsMenuDrawerProps> = ({
   totalEvents,
   onOpenRegister,
   onSelectCategory,
+  currentUser,
+  onOpenCompanyManager,
+  onOpenResidentProfile,
 }) => {
   if (!isOpen) return null;
 
@@ -82,6 +91,32 @@ export const GoogleMapsMenuDrawer: React.FC<GoogleMapsMenuDrawerProps> = ({
 
         {/* Actions list */}
         <div className="p-3 space-y-1 text-sm font-medium text-slate-700">
+          {currentUser?.role === 'empresa' && onOpenCompanyManager && (
+            <button
+              onClick={() => {
+                onOpenCompanyManager();
+                onClose();
+              }}
+              className="w-full flex items-center gap-3 p-3 rounded-xl bg-lime-50 text-lime-900 font-bold border border-lime-300 hover:bg-lime-100 transition-colors"
+            >
+              <Building2 className="w-5 h-5 text-lime-700" />
+              <span>Painel de Gerenciamento da Empresa</span>
+            </button>
+          )}
+
+          {currentUser?.role === 'morador' && onOpenResidentProfile && (
+            <button
+              onClick={() => {
+                onOpenResidentProfile();
+                onClose();
+              }}
+              className="w-full flex items-center gap-3 p-3 rounded-xl bg-emerald-50 text-emerald-900 font-bold border border-emerald-300 hover:bg-emerald-100 transition-colors"
+            >
+              <User className="w-5 h-5 text-emerald-700" />
+              <span>Painel & Opções do Morador</span>
+            </button>
+          )}
+
           <button
             onClick={() => {
               onOpenRegister();
@@ -90,7 +125,7 @@ export const GoogleMapsMenuDrawer: React.FC<GoogleMapsMenuDrawerProps> = ({
             className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-blue-50 text-blue-700 font-bold transition-colors"
           >
             <PlusCircle className="w-5 h-5 text-blue-600" />
-            <span>Adicionar uma empresa ou local</span>
+            <span>Cadastrar Empresa ou Evento</span>
           </button>
 
           <button

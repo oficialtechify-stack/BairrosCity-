@@ -6,9 +6,6 @@ import {
   Star, 
   Navigation, 
   ArrowRight, 
-  ShieldCheck, 
-  Sparkles, 
-  Radio, 
   Layers, 
   MessageSquare, 
   AlertTriangle, 
@@ -95,52 +92,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="text-lg font-black tracking-wider text-white">BAIRROSCITY</span>
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-lime-400/20 text-lime-400 border border-lime-400/30">
-                  MAP & GUIA
-                </span>
               </div>
               <p className="text-[11px] text-slate-400 font-medium hidden sm:block">
                 Curado & Cidades de Pernambuco
               </p>
             </div>
           </div>
-
-          {/* Desktop Nav Links */}
-          <nav className="hidden md:flex items-center gap-8 text-xs font-bold tracking-wider text-slate-300">
-            <button 
-              type="button" 
-              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-              className="text-white hover:text-lime-400 transition-colors cursor-pointer"
-            >
-              INÍCIO
-            </button>
-            <button 
-              type="button" 
-              onClick={() => onNavigateToMap()}
-              className="hover:text-lime-400 transition-colors flex items-center gap-1.5 cursor-pointer"
-            >
-              <Compass className="w-3.5 h-3.5 text-lime-400" />
-              <span>MAPA REGIONAL</span>
-            </button>
-            <button 
-              type="button" 
-              onClick={() => onNavigateToBairrosCity()}
-              className="hover:text-lime-400 transition-colors flex items-center gap-1.5 cursor-pointer"
-            >
-              <Users className="w-3.5 h-3.5 text-lime-400" />
-              <span>BAIRROSCITY (COMUNIDADE)</span>
-            </button>
-            <button 
-              type="button" 
-              onClick={() => {
-                const el = document.getElementById('catalog-section');
-                if (el) el.scrollIntoView({ behavior: 'smooth' });
-              }}
-              className="hover:text-lime-400 transition-colors cursor-pointer"
-            >
-              EMPRESAS
-            </button>
-          </nav>
 
           {/* Action CTAs */}
           <div className="flex items-center gap-3">
@@ -186,28 +143,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               className="px-4 py-2.5 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 font-black text-xs tracking-wider transition-all shadow-lg shadow-lime-400/25 flex items-center gap-2 cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
             >
               <Building2 className="w-3.5 h-3.5" />
-              <span>CADASTRAR EMPRESA</span>
+              <span>{currentUser?.role === 'empresa' ? 'PAINEL DA EMPRESA' : 'CADASTRAR EMPRESA'}</span>
             </button>
           </div>
 
         </div>
       </header>
 
-      {/* 2. Top Banner Pill - LeadsPay style */}
-      <div className="border-b border-slate-800/60 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 py-2.5">
-        <div className="max-w-7xl mx-auto px-4 flex items-center justify-center gap-3 text-xs text-slate-300 text-center">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-lime-400/10 text-lime-400 border border-lime-400/30 font-bold text-[11px]">
-            <Radio className="w-3 h-3 animate-pulse" />
-            FIREBASE FIRESTORE EM TEMPO REAL
-          </span>
-          <span className="hidden sm:inline text-slate-400">•</span>
-          <span className="hidden sm:inline text-slate-300 font-medium">
-            Cadastro 100% aberto para empresas locais e feed comunitário no BairrosCity
-          </span>
-        </div>
-      </div>
-
-      {/* 3. Hero Section (LeadsPay Aesthetic) */}
+      {/* Hero Section */}
       <section className="relative overflow-hidden pt-12 pb-20 sm:pt-16 sm:pb-28">
         
         {/* Neon green glow background circles */}
@@ -216,12 +159,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
         <div className="max-w-5xl mx-auto px-4 sm:px-6 text-center relative z-10">
           
-          {/* Badge */}
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900/90 border border-lime-400/30 text-lime-400 text-xs font-bold mb-6 shadow-md shadow-lime-500/10 backdrop-blur-md">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>O MAPA DEFINITIVO DO SEU BAIRRO E DA SUA CIDADE</span>
-          </div>
-
           {/* Main Title */}
           <h1 className="text-3xl sm:text-5xl md:text-6xl font-black text-white tracking-tight leading-[1.15] mb-6">
             A PLATAFORMA REGIONAL QUE CONECTA{' '}
@@ -255,7 +192,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     referrerPolicy="no-referrer"
                   />
                 ) : null}
-                <span>ENTRAR NO SITE COMO {currentUser.name.toUpperCase()}</span>
+                <span>
+                  {currentUser.role === 'empresa'
+                    ? `ACESSAR PAINEL: ${(currentUser.companyName || currentUser.name).toUpperCase()}`
+                    : `ENTRAR NO SITE COMO ${currentUser.name.toUpperCase()}`}
+                </span>
                 <ArrowRight className="w-5 h-5 text-slate-950" />
               </button>
             ) : (
@@ -272,7 +213,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
 
           {/* Quick specs chips */}
-          <div className="mt-12 pt-8 border-t border-slate-800/80 grid grid-cols-2 md:grid-cols-4 gap-4 text-left">
+          <div className="mt-12 pt-8 border-t border-slate-800/80 grid grid-cols-1 sm:grid-cols-3 gap-4 text-left">
             <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-900/50 border border-slate-800">
               <div className="w-8 h-8 rounded-lg bg-lime-400/10 text-lime-400 flex items-center justify-center">
                 <Building2 className="w-4 h-4" />
@@ -302,16 +243,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <p className="text-[11px] text-slate-400">Localização exata</p>
               </div>
             </div>
-
-            <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-900/50 border border-slate-800">
-              <div className="w-8 h-8 rounded-lg bg-lime-400/10 text-lime-400 flex items-center justify-center">
-                <ShieldCheck className="w-4 h-4" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-white">Firebase Conectado</p>
-                <p className="text-[11px] text-slate-400">Nuvem persistente</p>
-              </div>
-            </div>
           </div>
 
         </div>
@@ -322,10 +253,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           
           <div className="text-center mb-10">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-lime-400/10 text-lime-400 border border-lime-400/30 text-xs font-bold mb-3">
-              <Radio className="w-3 h-3 text-lime-400" />
-              <span>DADOS REAIS EM TEMPO REAL (BANCO FIRESTORE)</span>
-            </div>
             <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
               Métricas Reais do Ecossistema BairrosCity
             </h2>
@@ -547,10 +474,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-lime-400/10 text-lime-400 border border-lime-400/30 text-xs font-bold mb-2">
-              <Building2 className="w-3.5 h-3.5" />
-              <span>CATÁLOGO ATIVO • SINCRONIZADO COM BANCO DE DADOS</span>
-            </div>
             <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
               EMPRESAS & NEGÓCIOS CADASTRADOS
             </h2>

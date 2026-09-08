@@ -50,8 +50,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [loadingGoogle, setLoadingGoogle] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>('');
 
-  if (!isOpen) return null;
-
   // Handle Sign-in / Sign-up with Google
   const handleGoogleSignIn = async () => {
     setErrorMsg('');
@@ -79,13 +77,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       }
 
       if (existingProfile) {
-        // User already has an existing profile
+        // If registering specifically as company, ensure role is set to empresa
+        const finalRole = (isRegisterMode && role === 'empresa') ? 'empresa' : (existingProfile.role || role);
         profile = {
           ...existingProfile,
+          role: finalRole,
+          companyName: finalRole === 'empresa' ? (companyName.trim() || existingProfile.companyName || user.displayName || 'Minha Empresa') : existingProfile.companyName,
           email: user.email || existingProfile.email,
           photoURL: user.photoURL || existingProfile.photoURL,
           name: existingProfile.name || user.displayName || 'Usuário Google',
         };
+        try {
+          await setDoc(doc(db, 'users', user.uid), profile, { merge: true });
+        } catch (e) {
+          console.warn(e);
+        }
       } else {
         // Create new profile for Google user
         profile = {
@@ -166,6 +172,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setLoading(false);
     }
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-[1200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">

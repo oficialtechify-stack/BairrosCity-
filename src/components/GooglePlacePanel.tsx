@@ -22,8 +22,16 @@ import {
   ChevronUp,
   Info,
   Map as MapIcon,
-  List
+  List,
+  Building2,
+  PackageCheck,
+  Plus,
+  ShoppingBag,
+  Instagram,
+  Globe
 } from 'lucide-react';
+import { UserProfile } from '../types';
+import { recordCompanyInteraction } from '../services/placesService';
 
 interface GooglePlacePanelProps {
   isOpen: boolean;
@@ -36,6 +44,9 @@ interface GooglePlacePanelProps {
   onOpenRegister: () => void;
   savedPlaceIds: string[];
   onToggleSavePlace: (placeId: string) => void;
+  currentUser?: UserProfile | null;
+  onOpenCompanyManager?: () => void;
+  userCompanyPlace?: Place | null;
 }
 
 export const GooglePlacePanel: React.FC<GooglePlacePanelProps> = ({
@@ -49,6 +60,9 @@ export const GooglePlacePanel: React.FC<GooglePlacePanelProps> = ({
   onOpenRegister,
   savedPlaceIds,
   onToggleSavePlace,
+  currentUser,
+  onOpenCompanyManager,
+  userCompanyPlace,
 }) => {
   // Review form state
   const [showReviewForm, setShowReviewForm] = useState<boolean>(false);
@@ -249,6 +263,28 @@ export const GooglePlacePanel: React.FC<GooglePlacePanelProps> = ({
 
               {/* Place Title & Rating */}
               <div className="p-4 border-b border-slate-100">
+                {/* If place is owned by current user */}
+                {(selectedPlace.ownerId === currentUser?.id || (currentUser?.role === 'empresa' && selectedPlace.id === userCompanyPlace?.id)) && (
+                  <div className="mb-3 p-2.5 rounded-xl bg-slate-900 border border-lime-400/40 text-white flex items-center justify-between shadow-sm">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Building2 className="w-4 h-4 text-lime-400 shrink-0" />
+                      <div className="truncate">
+                        <p className="text-xs font-black text-lime-400 truncate">Sua Empresa Cadastrada</p>
+                        <p className="text-[10px] text-slate-400 truncate">Gerencie produtos, horários e WhatsApp</p>
+                      </div>
+                    </div>
+                    {onOpenCompanyManager && (
+                      <button
+                        type="button"
+                        onClick={onOpenCompanyManager}
+                        className="px-2.5 py-1 rounded-lg bg-lime-400 hover:bg-lime-300 text-slate-950 font-black text-[11px] shrink-0 shadow-xs cursor-pointer ml-2"
+                      >
+                        Painel
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 <h2 className="text-xl font-bold text-slate-900 leading-tight">
                   {selectedPlace.name}
                 </h2>
@@ -286,6 +322,30 @@ export const GooglePlacePanel: React.FC<GooglePlacePanelProps> = ({
                 <p className="text-xs text-slate-600 mt-2 leading-relaxed">
                   {selectedPlace.description}
                 </p>
+
+                {/* Company Owner Administration Banner */}
+                {currentUser && (currentUser.id === selectedPlace.ownerId || (currentUser.role === 'empresa' && currentUser.companyName && selectedPlace.name && currentUser.companyName.toLowerCase() === selectedPlace.name.toLowerCase())) && (
+                  <div className="mt-3 p-3 rounded-2xl bg-lime-50 border border-lime-300 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-xl bg-lime-400/30 text-lime-700 flex items-center justify-center">
+                        <Building2 className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold text-slate-900 block">Sua Empresa Cadastrada</span>
+                        <span className="text-[10px] text-slate-500">Você é o administrador deste estabelecimento</span>
+                      </div>
+                    </div>
+                    {onOpenCompanyManager && (
+                      <button
+                        type="button"
+                        onClick={onOpenCompanyManager}
+                        className="px-3 py-1.5 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 font-black text-xs transition-colors cursor-pointer"
+                      >
+                        Gerenciar Empresa
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Google Action Buttons (Round Circle Icons + Text below) */}
@@ -330,6 +390,7 @@ export const GooglePlacePanel: React.FC<GooglePlacePanelProps> = ({
                     )}`}
                     target="_blank"
                     rel="noreferrer"
+                    onClick={() => recordCompanyInteraction(selectedPlace.id, 'whatsapp')}
                     className="flex flex-col items-center gap-1 group cursor-pointer"
                   >
                     <div className="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-xs group-hover:bg-emerald-700 transition-colors">
@@ -488,6 +549,105 @@ export const GooglePlacePanel: React.FC<GooglePlacePanelProps> = ({
                       >
                         {selectedPlace.phone}
                       </a>
+                    </div>
+                  )}
+
+                  {/* Instagram */}
+                  {selectedPlace.instagram && (
+                    <div className="flex items-center gap-3 py-1 border-t border-slate-100 pt-2.5">
+                      <Instagram className="w-4 h-4 text-pink-600 shrink-0" />
+                      <a
+                        href={`https://instagram.com/${selectedPlace.instagram.replace('@', '')}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-pink-600 hover:underline font-semibold text-xs flex items-center gap-1"
+                      >
+                        <span>{selectedPlace.instagram}</span>
+                        <span className="text-[10px] text-slate-400 font-normal">(Instagram Oficial)</span>
+                      </a>
+                    </div>
+                  )}
+
+                  {/* Website */}
+                  {selectedPlace.website && (
+                    <div className="flex items-center gap-3 py-1 border-t border-slate-100 pt-2.5">
+                      <Globe className="w-4 h-4 text-blue-600 shrink-0" />
+                      <a
+                        href={selectedPlace.website}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-blue-600 hover:underline font-medium text-xs truncate max-w-[260px]"
+                      >
+                        {selectedPlace.website.replace(/^https?:\/\//, '')}
+                      </a>
+                    </div>
+                  )}
+
+                  {/* PRODUCTS / SERVICES CATALOG */}
+                  {selectedPlace.productsOrServices && selectedPlace.productsOrServices.length > 0 && (
+                    <div className="border-t border-slate-100 pt-3 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900">
+                          <ShoppingBag className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Cardápio & Produtos ({selectedPlace.productsOrServices.length})</span>
+                        </div>
+                        <span className="text-[10px] bg-emerald-50 text-emerald-700 font-bold px-1.5 py-0.5 rounded border border-emerald-200">
+                          Preços Oficiais
+                        </span>
+                      </div>
+
+                      <div className="space-y-2">
+                        {selectedPlace.productsOrServices.map((prod) => (
+                          <div
+                            key={prod.id}
+                            className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3 hover:border-emerald-300 transition-colors"
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              {prod.imageUrl ? (
+                                <img
+                                  src={prod.imageUrl}
+                                  alt={prod.name}
+                                  className="w-10 h-10 rounded-lg object-cover border border-slate-200 shrink-0"
+                                />
+                              ) : (
+                                <div className="w-10 h-10 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-400 shrink-0">
+                                  <ShoppingBag className="w-4 h-4 text-slate-400" />
+                                </div>
+                              )}
+                              <div className="min-w-0">
+                                <div className="font-bold text-slate-900 text-xs truncate">
+                                  {prod.name}
+                                </div>
+                                {prod.description && (
+                                  <div className="text-[11px] text-slate-500 line-clamp-1">
+                                    {prod.description}
+                                  </div>
+                                )}
+                                {prod.price && (
+                                  <div className="text-xs font-black text-emerald-700 mt-0.5">
+                                    {prod.price}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {selectedPlace.whatsapp && (
+                              <a
+                                href={`https://wa.me/55${selectedPlace.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(
+                                  `Olá! Vi o produto "${prod.name}" (${prod.price || ''}) no BairroMap e gostaria de pedir.`
+                                )}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={() => recordCompanyInteraction(selectedPlace.id, 'whatsapp')}
+                                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] shrink-0 flex items-center gap-1 shadow-xs transition-colors"
+                              >
+                                <MessageCircle className="w-3 h-3 fill-white" />
+                                <span>Pedir</span>
+                              </a>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
 
@@ -717,6 +877,95 @@ export const GooglePlacePanel: React.FC<GooglePlacePanelProps> = ({
           ) : (
             /* PLACES LIST / SEARCH RESULTS VIEW */
             <div className="flex-1 flex flex-col overflow-y-auto">
+              {/* COMPANY USER SPOTLIGHT (When logged in as Empresa) */}
+              {currentUser?.role === 'empresa' && userCompanyPlace && (
+                <div className="m-3 p-3.5 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-850 to-slate-900 border border-lime-400/40 text-white shadow-lg shrink-0">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-lime-400 flex items-center gap-1.5">
+                      <Building2 className="w-3.5 h-3.5" /> SUA EMPRESA CADASTRADA
+                    </span>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                      userCompanyPlace.isPaused
+                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                        : 'bg-lime-400/20 text-lime-300 border border-lime-400/40'
+                    }`}>
+                      {userCompanyPlace.isPaused ? 'Pausada' : 'Ativa no Mapa'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={userCompanyPlace.logoUrl || userCompanyPlace.imageUrl}
+                      alt={userCompanyPlace.name}
+                      className="w-12 h-12 rounded-xl object-cover border border-slate-700 bg-slate-800 shrink-0"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-black text-white truncate">{userCompanyPlace.name}</h3>
+                      <p className="text-[11px] text-slate-300 truncate">
+                        {userCompanyPlace.neighborhood} • {userCompanyPlace.subCategory || userCompanyPlace.category}
+                      </p>
+                      <div className="flex items-center gap-3 mt-1 text-[10px] text-slate-400">
+                        <span>👁️ {userCompanyPlace.viewsCount || 0} visitas</span>
+                        <span>💬 {userCompanyPlace.whatsappClicks || 0} WhatsApp</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={onOpenCompanyManager}
+                      className="py-1.5 px-2 bg-lime-400 hover:bg-lime-300 text-slate-950 font-black text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                    >
+                      <Building2 className="w-3.5 h-3.5" />
+                      <span>Gerenciar Painel</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onSelectPlace(userCompanyPlace)}
+                      className="py-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl flex items-center justify-center gap-1 transition-all border border-slate-700 cursor-pointer"
+                    >
+                      <MapPin className="w-3.5 h-3.5 text-lime-400" />
+                      <span>Ver no Mapa</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {currentUser?.role === 'empresa' && !userCompanyPlace && (
+                <div className="m-3 p-3.5 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-850 to-slate-900 border border-lime-400/50 text-white shadow-xl shrink-0">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-lime-400 flex items-center gap-1.5">
+                      <Building2 className="w-3.5 h-3.5" /> CONTA EMPRESARIAL ATIVA
+                    </span>
+                    <span className="text-[10px] font-semibold text-slate-400">{currentUser.name}</span>
+                  </div>
+                  <h4 className="text-sm font-black text-white">
+                    {currentUser.companyName || currentUser.name}: Publique seu comércio
+                  </h4>
+                  <p className="text-[11px] text-slate-300 mt-1 leading-snug">
+                    Sua empresa ainda não aparece no mapa. Cadastre com foto, WhatsApp e endereço para começar a receber clientes do Curado e Recife!
+                  </p>
+                  <div className="mt-3 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={onOpenRegister}
+                      className="flex-1 py-2 px-3 bg-lime-400 hover:bg-lime-300 text-slate-950 font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-md transition-all cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Cadastrar Minha Empresa no Mapa</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onOpenCompanyManager}
+                      className="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 cursor-pointer"
+                    >
+                      Painel
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Header of results with quick register CTA */}
               <div className="p-3 border-b border-slate-100 bg-slate-50/70 flex items-center justify-between">
                 <div>

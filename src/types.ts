@@ -1,11 +1,26 @@
 export type CategoryType = 
   | 'restaurant' 
   | 'cafe' 
+  | 'bakery'
+  | 'supermarket'
   | 'shopping' 
+  | 'pharmacy'
+  | 'healthcare'
+  | 'beauty'
+  | 'fitness'
+  | 'automotive'
+  | 'construction'
+  | 'petshop'
+  | 'fashion'
+  | 'technology'
+  | 'services'
+  | 'education'
+  | 'realestate'
+  | 'parties'
   | 'leisure' 
-  | 'event' 
   | 'nightlife' 
-  | 'services';
+  | 'event' 
+  | 'other';
 
 export interface Review {
   id: string;
@@ -16,10 +31,20 @@ export interface Review {
   userRole?: string;
 }
 
+export interface ProductItem {
+  id: string;
+  name: string;
+  price?: string;
+  description?: string;
+  imageUrl?: string;
+  category?: string;
+}
+
 export interface Place {
   id: string;
   name: string;
   category: CategoryType;
+  customCategory?: string;
   subCategory: string;
   description: string;
   address: string;
@@ -51,6 +76,11 @@ export interface Place {
   ownerName?: string;
   ownerEmail?: string;
   distanceKm?: number;
+  // Metrics & Management
+  viewsCount?: number;
+  whatsappClicks?: number;
+  isPaused?: boolean;
+  productsOrServices?: ProductItem[];
 }
 
 export interface UserLocation {
@@ -86,6 +116,27 @@ export interface NeighborhoodPost {
   commentsCount: number;
 }
 
+export interface CompanyDetails {
+  companyName: string;
+  category: CategoryType;
+  subCategory?: string;
+  cnpj?: string;
+  phone?: string;
+  whatsapp?: string;
+  address: string;
+  neighborhood: string;
+  city: string;
+  lat: number;
+  lng: number;
+  hours?: string;
+  description?: string;
+  imageUrl?: string;
+  logoUrl?: string;
+  instagram?: string;
+  website?: string;
+  placeId?: string;
+}
+
 export interface UserProfile {
   id: string;
   name: string;
@@ -96,4 +147,7 @@ export interface UserProfile {
   phone?: string;
   photoURL?: string;
   createdAt: string;
+  companyDetails?: CompanyDetails;
+  companyPlaceId?: string;
+  savedPlaceIds?: string[];
 }

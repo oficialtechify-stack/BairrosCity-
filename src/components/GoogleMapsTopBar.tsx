@@ -33,7 +33,10 @@ import {
   Cross,
   Trophy,
   Church,
-  GraduationCap
+  GraduationCap,
+  Building2,
+  User,
+  Settings
 } from 'lucide-react';
 
 interface GoogleMapsTopBarProps {
@@ -55,6 +58,8 @@ interface GoogleMapsTopBarProps {
   currentUser: UserProfile | null;
   onGoogleLogin: () => void;
   onLogout: () => void;
+  onOpenCompanyManager: () => void;
+  onOpenResidentProfile: () => void;
 }
 
 export const GoogleMapsTopBar: React.FC<GoogleMapsTopBarProps> = ({
@@ -76,6 +81,8 @@ export const GoogleMapsTopBar: React.FC<GoogleMapsTopBarProps> = ({
   currentUser,
   onGoogleLogin,
   onLogout,
+  onOpenCompanyManager,
+  onOpenResidentProfile,
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
@@ -554,17 +561,41 @@ export const GoogleMapsTopBar: React.FC<GoogleMapsTopBarProps> = ({
             <span>BairrosCity</span>
           </button>
 
-          {/* + Cadastrar Empresa Button (Distinctive styling) */}
-          <button
-            type="button"
-            onClick={onOpenRegister}
-            className="px-3 sm:px-3.5 py-1.5 rounded-full text-xs font-black bg-lime-400 hover:bg-lime-300 text-slate-950 flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
-            title="Cadastre sua empresa no BairrosCity com logo no mapa"
-          >
-            <Plus className="w-3.5 h-3.5 text-slate-950" />
-            <span className="hidden sm:inline">+ Cadastrar Empresa</span>
-            <span className="sm:hidden">+ Empresa</span>
-          </button>
+          {/* Role-Specific Button: Empresa vs Morador vs Visitante */}
+          {currentUser && currentUser.role === 'empresa' ? (
+            <button
+              type="button"
+              onClick={onOpenCompanyManager}
+              className="px-3 sm:px-3.5 py-1.5 rounded-full text-xs font-black bg-lime-400 hover:bg-lime-300 text-slate-950 flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+              title="Gerenciar minha empresa no BairrosCity"
+            >
+              <Building2 className="w-3.5 h-3.5 text-slate-950" />
+              <span className="hidden sm:inline">Gerenciar Empresa</span>
+              <span className="sm:hidden">Empresa</span>
+            </button>
+          ) : currentUser && currentUser.role === 'morador' ? (
+            <button
+              type="button"
+              onClick={onOpenResidentProfile}
+              className="px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-bold text-slate-700 hover:bg-slate-100 flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Opções do Morador"
+            >
+              <User className="w-3.5 h-3.5 text-emerald-600" />
+              <span className="hidden sm:inline">Opções Morador</span>
+              <span className="sm:hidden">Perfil</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onOpenRegister}
+              className="px-3 sm:px-3.5 py-1.5 rounded-full text-xs font-black bg-lime-400 hover:bg-lime-300 text-slate-950 flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+              title="Cadastre sua empresa no BairrosCity com logo no mapa"
+            >
+              <Plus className="w-3.5 h-3.5 text-slate-950" />
+              <span className="hidden sm:inline">+ Cadastrar Empresa</span>
+              <span className="sm:hidden">+ Empresa</span>
+            </button>
+          )}
 
           {/* User Profile Avatar / Login Google */}
           <div className="relative pl-1 border-l border-slate-200">
@@ -592,6 +623,91 @@ export const GoogleMapsTopBar: React.FC<GoogleMapsTopBarProps> = ({
                     {currentUser.name.split(' ')[0]}
                   </span>
                 </button>
+
+                {/* Dropdown Menu for Logged In User */}
+                {userDropdownOpen && (
+                  <div className="absolute right-0 top-10 w-64 bg-white rounded-2xl shadow-xl border border-slate-200 py-2 z-50 animate-in fade-in">
+                    <div className="px-4 py-2 border-b border-slate-100">
+                      <p className="text-xs font-bold text-slate-900 truncate">{currentUser.name}</p>
+                      <p className="text-[11px] text-slate-500 truncate">{currentUser.email}</p>
+                      <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        currentUser.role === 'empresa'
+                          ? 'bg-lime-100 text-lime-800 border border-lime-300'
+                          : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                      }`}>
+                        {currentUser.role === 'empresa' ? 'Conta Empresarial' : 'Conta Morador'}
+                      </span>
+                    </div>
+
+                    <div className="py-1">
+                      {currentUser.role === 'empresa' ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setUserDropdownOpen(false);
+                              onOpenCompanyManager();
+                            }}
+                            className="w-full px-4 py-2 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
+                          >
+                            <Building2 className="w-4 h-4 text-lime-600" />
+                            <span>Gerenciar Minha Empresa</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setUserDropdownOpen(false);
+                              onOpenRegister();
+                            }}
+                            className="w-full px-4 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
+                          >
+                            <Plus className="w-4 h-4 text-slate-500" />
+                            <span>Cadastrar Novo Local / Evento</span>
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setUserDropdownOpen(false);
+                              onOpenResidentProfile();
+                            }}
+                            className="w-full px-4 py-2 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
+                          >
+                            <User className="w-4 h-4 text-emerald-600" />
+                            <span>Painel do Morador & Favoritos</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setUserDropdownOpen(false);
+                              onOpenRegister();
+                            }}
+                            className="w-full px-4 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
+                          >
+                            <Building2 className="w-4 h-4 text-slate-500" />
+                            <span>Cadastrar Empresa (Mudar Perfil)</span>
+                          </button>
+                        </>
+                      )}
+                    </div>
+
+                    <div className="border-t border-slate-100 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUserDropdownOpen(false);
+                          onLogout();
+                        }}
+                        className="w-full px-4 py-2 text-left text-xs font-medium text-red-600 hover:bg-red-50 flex items-center gap-2 cursor-pointer"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        <span>Sair da Conta</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 <button
                   type="button"

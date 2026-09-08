@@ -5,11 +5,12 @@ import {
   History,
   Smartphone,
   PlusCircle,
-  MapPin,
-  Sparkles,
   Home,
-  Users
+  Users,
+  Building2,
+  User
 } from 'lucide-react';
+import { UserProfile } from '../types';
 
 interface GoogleMapsRailProps {
   onToggleMenu: () => void;
@@ -19,6 +20,9 @@ interface GoogleMapsRailProps {
   onNavigateHome?: () => void;
   onNavigateBairrosCity?: () => void;
   savedCount: number;
+  currentUser?: UserProfile | null;
+  onOpenCompanyManager?: () => void;
+  onOpenResidentProfile?: () => void;
 }
 
 export const GoogleMapsRail: React.FC<GoogleMapsRailProps> = ({
@@ -29,6 +33,9 @@ export const GoogleMapsRail: React.FC<GoogleMapsRailProps> = ({
   onNavigateHome,
   onNavigateBairrosCity,
   savedCount,
+  currentUser,
+  onOpenCompanyManager,
+  onOpenResidentProfile,
 }) => {
   return (
     <aside
@@ -74,6 +81,31 @@ export const GoogleMapsRail: React.FC<GoogleMapsRailProps> = ({
             <span className="w-2 h-2 rounded-full bg-lime-400 absolute top-1 right-2" />
           </button>
         )}
+
+        {/* Role-Specific Manager / Resident Option */}
+        {currentUser?.role === 'empresa' && onOpenCompanyManager ? (
+          <button
+            onClick={onOpenCompanyManager}
+            className="flex flex-col items-center gap-1 group w-full py-1 hover:bg-slate-50 transition-colors"
+            title="Gerenciar Minha Empresa"
+          >
+            <Building2 className="w-5 h-5 text-lime-600 group-hover:scale-110 transition-transform" />
+            <span className="text-[9px] font-bold text-lime-700 text-center leading-tight">
+              Empresa
+            </span>
+          </button>
+        ) : currentUser?.role === 'morador' && onOpenResidentProfile ? (
+          <button
+            onClick={onOpenResidentProfile}
+            className="flex flex-col items-center gap-1 group w-full py-1 hover:bg-slate-50 transition-colors"
+            title="Opções do Morador"
+          >
+            <User className="w-5 h-5 text-emerald-600 group-hover:scale-110 transition-transform" />
+            <span className="text-[9px] font-bold text-emerald-700 text-center leading-tight">
+              Morador
+            </span>
+          </button>
+        ) : null}
 
         {/* Salvos (Saved places) */}
         <button

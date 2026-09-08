@@ -10,8 +10,9 @@ import { RegisterModal } from './components/RegisterModal';
 import { LandingPage } from './components/LandingPage';
 import { BairrosCity } from './components/BairrosCity';
 import { AuthModal } from './components/AuthModal';
-import { subscribePlaces, createPlaceInFirestore, addReviewToFirestore } from './services/placesService';
-import { PUBLIC_LANDMARKS } from './data/publicLandmarks';
+import { CompanyManagerModal } from './components/CompanyManagerModal';
+import { ResidentProfileModal } from './components/ResidentProfileModal';
+import { subscribePlaces, createPlaceInFirestore, addReviewToFirestore, cleanupFakePlacesFromFirestore } from './services/placesService';
 import { auth, db, signOut, onAuthStateChanged, getDoc, doc } from './lib/firebase';
 import { loginWithGoogle } from './services/authService';
 import { Home, Users, MapPin, Plus, Navigation, LogIn, CheckCircle2, LogOut } from 'lucide-react';
@@ -21,8 +22,8 @@ export default function App() {
   const [currentView, setCurrentView] = useState<'home' | 'map' | 'bairroscity'>('home');
   const [bairrosInitialNeighborhood, setBairrosInitialNeighborhood] = useState<string>('Curado IV');
 
-  // Real-time Firestore places state combined with verified public landmarks
-  const [places, setPlaces] = useState<Place[]>(PUBLIC_LANDMARKS);
+  // Real-time Firestore places state (only real registered companies appear on the map)
+  const [places, setPlaces] = useState<Place[]>([]);
   const [loadingPlaces, setLoadingPlaces] = useState<boolean>(true);
 
   // Saved bookmark IDs
@@ -51,11 +52,35 @@ export default function App() {
   const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
   const [isRegisterOpen, setIsRegisterOpen] = useState<boolean>(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+  const [isCompanyManagerOpen, setIsCompanyManagerOpen] = useState<boolean>(false);
+  const [isResidentProfileOpen, setIsResidentProfileOpen] = useState<boolean>(false);
   const [activeLayer, setActiveLayer] = useState<MapLayerType>('roadmap');
+
+  // Automatic clean-up of legacy fake mock companies on startup
+  useEffect(() => {
+    cleanupFakePlacesFromFirestore().catch((err) => {
+      console.warn('Fake companies cleanup info:', err);
+    });
+  }, []);
+
+  // Locate the place owned by the current company user if logged in
+  const userCompanyPlace = useMemo(() => {
+    if (!currentUser) return null;
+    return (
+      places.find(
+        (p) =>
+          (p.ownerId && p.ownerId === currentUser.id) ||
+          (currentUser.email && p.ownerEmail === currentUser.email) ||
+          (currentUser.companyName &&
+            p.name.toLowerCase().trim() === currentUser.companyName.toLowerCase().trim())
+      ) || null
+    );
+  }, [places, currentUser]);
 
   // Coordinate picking on map for business registration
   const [selectingLocation, setSelectingLocation] = useState<boolean>(false);
   const [pickedCoord, setPickedCoord] = useState<{ lat: number; lng: number } | null>(null);
+  const [pickingForTarget, setPickingForTarget] = useState<'register' | 'companyManager'>('register');
 
   // User GPS location & filters
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
@@ -69,11 +94,10 @@ export default function App() {
 
   // Subscribe to Firebase Firestore places
   useEffect(() => {
+    cleanupFakePlacesFromFirestore().catch(() => {});
     const unsubscribe = subscribePlaces((firestorePlaces) => {
-      // Merge public landmarks (militar, museus, estacoes, upas, arenas, igrejas, cemiterios, shopping, escolas, eventos)
-      // with registered local businesses from Firestore
-      const combined = [...PUBLIC_LANDMARKS, ...firestorePlaces];
-      setPlaces(combined);
+      // Only real registered companies from Firestore are shown on the map
+      setPlaces(firestorePlaces);
       setLoadingPlaces(false);
     });
 
@@ -101,13 +125,18 @@ export default function App() {
   }, []);
 
   // Direct 1-click Google Login flow - takes the user straight to the site
-  const handleGoogleDirectLogin = async () => {
+  const handleGoogleDirectLogin = async (roleOverride?: 'morador' | 'empresa') => {
     try {
-      const profile = await loginWithGoogle();
+      const profile = await loginWithGoogle(roleOverride);
       setCurrentUser(profile);
       setCurrentView('map');
-      setGpsToast(`Conectado como ${profile.name}! Entrou no site.`);
-      setTimeout(() => setGpsToast(null), 3000);
+      if (profile.role === 'empresa') {
+        setIsCompanyManagerOpen(true);
+        setGpsToast(`Conectado como ${profile.name}! Abrindo painel da empresa.`);
+      } else {
+        setGpsToast(`Conectado como ${profile.name}! Entrou no site.`);
+      }
+      setTimeout(() => setGpsToast(null), 3500);
     } catch (err: any) {
       if (err?.code !== 'auth/popup-closed-by-user' && err?.code !== 'auth/cancelled-popup-request') {
         alert('Erro ao conectar com Google: ' + (err?.message || 'Tente novamente'));
@@ -223,14 +252,30 @@ export default function App() {
         ...newPlaceData,
         ownerId: currentUser?.id,
         ownerName: currentUser?.name,
+        ownerEmail: currentUser?.email,
       });
+
+      const newPlaceObj: Place = {
+        ...newPlaceData,
+        id: createdId,
+        rating: 5.0,
+        reviewsCount: 1,
+        reviews: [],
+        createdAt: new Date().toISOString(),
+      };
+
+      setPlaces((prev) => [newPlaceObj, ...prev.filter((p) => p.id !== createdId)]);
+      setSelectedPlace(newPlaceObj);
+      setMapCenterCoord({ lat: newPlaceObj.lat, lng: newPlaceObj.lng, zoom: 17 });
 
       setIsRegisterOpen(false);
       setSelectingLocation(false);
       setPickedCoord(null);
       setCurrentView('map');
-      setGpsToast('Empresa cadastrada com sucesso no Firebase!');
-      setTimeout(() => setGpsToast(null), 4000);
+      setIsSidePanelOpen(true);
+      setIsCompanyManagerOpen(true);
+      setGpsToast(`🎉 Empresa "${newPlaceObj.name}" publicada no mapa!`);
+      setTimeout(() => setGpsToast(null), 5000);
     } catch (err) {
       console.error('Error creating place in Firestore', err);
       alert('Erro ao salvar no banco de dados. Tente novamente.');
@@ -238,8 +283,10 @@ export default function App() {
   };
 
   // Coordinate picking on the map
-  const handleStartPickingLocation = () => {
+  const handleStartPickingLocation = (fromTarget: 'register' | 'companyManager' = 'register') => {
+    setPickingForTarget(fromTarget);
     setIsRegisterOpen(false);
+    setIsCompanyManagerOpen(false);
     setSelectingLocation(true);
     setCurrentView('map');
     setIsSidePanelOpen(false);
@@ -248,7 +295,11 @@ export default function App() {
   const handleCoordSelected = (coord: { lat: number; lng: number }) => {
     setPickedCoord(coord);
     setSelectingLocation(false);
-    setIsRegisterOpen(true);
+    if (pickingForTarget === 'companyManager') {
+      setIsCompanyManagerOpen(true);
+    } else {
+      setIsRegisterOpen(true);
+    }
   };
 
   // Filtered places calculation
@@ -316,12 +367,22 @@ export default function App() {
             onNavigateToMap={(place) => {
               if (place) setSelectedPlace(place);
               setCurrentView('map');
+              if (currentUser?.role === 'empresa' && !place) {
+                setIsCompanyManagerOpen(true);
+              }
             }}
             onNavigateToBairrosCity={(nb) => {
               if (nb) setBairrosInitialNeighborhood(nb);
               setCurrentView('bairroscity');
             }}
-            onOpenRegisterCompany={() => setIsRegisterOpen(true)}
+            onOpenRegisterCompany={() => {
+              if (currentUser?.role === 'empresa') {
+                setCurrentView('map');
+                setIsCompanyManagerOpen(true);
+              } else {
+                setIsRegisterOpen(true);
+              }
+            }}
             onOpenAuth={handleGoogleDirectLogin}
             onGoogleSignIn={handleGoogleDirectLogin}
             currentUser={currentUser}
@@ -377,6 +438,9 @@ export default function App() {
             }}
             onOpenRegister={() => setIsRegisterOpen(true)}
             savedCount={savedPlaceIds.length}
+            currentUser={currentUser}
+            onOpenCompanyManager={() => setIsCompanyManagerOpen(true)}
+            onOpenResidentProfile={() => setIsResidentProfileOpen(true)}
           />
 
           {/* Unified Centralized Top Bar (Search + Options in One Professional Bar) */}
@@ -430,6 +494,8 @@ export default function App() {
               setGpsToast('Você saiu da sua conta.');
               setTimeout(() => setGpsToast(null), 2500);
             }}
+            onOpenCompanyManager={() => setIsCompanyManagerOpen(true)}
+            onOpenResidentProfile={() => setIsResidentProfileOpen(true)}
           />
 
           {/* Google Maps Sliding Left Panel (Place Details or Places List) */}
@@ -448,6 +514,9 @@ export default function App() {
             onOpenRegister={() => setIsRegisterOpen(true)}
             savedPlaceIds={savedPlaceIds}
             onToggleSavePlace={handleToggleSavePlace}
+            currentUser={currentUser}
+            onOpenCompanyManager={() => setIsCompanyManagerOpen(true)}
+            userCompanyPlace={userCompanyPlace}
           />
 
           {/* Full-Screen Leaflet Google Maps Canvas */}
@@ -483,6 +552,9 @@ export default function App() {
               setSelectedCategory(cat);
               setIsSidePanelOpen(true);
             }}
+            currentUser={currentUser}
+            onOpenCompanyManager={() => setIsCompanyManagerOpen(true)}
+            onOpenResidentProfile={() => setIsResidentProfileOpen(true)}
           />
 
         </div>
@@ -495,6 +567,8 @@ export default function App() {
         onSavePlace={handleSavePlace}
         pickedCoord={pickedCoord}
         onStartPickingLocation={handleStartPickingLocation}
+        currentUser={currentUser}
+        onUserRoleUpdated={(updated) => setCurrentUser(updated)}
       />
 
       {/* Auth & Profile Modal */}
@@ -504,10 +578,94 @@ export default function App() {
         currentUser={currentUser}
         onLoginSuccess={(user) => {
           setCurrentUser(user);
-          setGpsToast(`Bem-vindo, ${user.name}!`);
+          setCurrentView('map');
+          if (user.role === 'empresa') {
+            setIsCompanyManagerOpen(true);
+            setGpsToast(`Bem-vindo, ${user.name}! Abrindo painel da empresa.`);
+          } else {
+            setGpsToast(`Bem-vindo, ${user.name}!`);
+          }
           setTimeout(() => setGpsToast(null), 3500);
         }}
       />
+
+      {/* Company Management Dashboard Modal */}
+      {isCompanyManagerOpen && (
+        <CompanyManagerModal
+          isOpen={isCompanyManagerOpen}
+          onClose={() => setIsCompanyManagerOpen(false)}
+          currentUser={currentUser}
+          companyPlace={userCompanyPlace}
+          onPlaceUpdated={(updated) => {
+            setPlaces((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+            if (selectedPlace?.id === updated.id) {
+              setSelectedPlace(updated);
+            }
+          }}
+          onPlaceCreated={(newPlace) => {
+            setPlaces((prev) => [newPlace, ...prev]);
+            setSelectedPlace(newPlace);
+            setMapCenterCoord({ lat: newPlace.lat, lng: newPlace.lng, zoom: 17 });
+            setGpsToast(`🎉 Empresa "${newPlace.name}" publicada no mapa!`);
+            setTimeout(() => setGpsToast(null), 5000);
+          }}
+          onUserUpdated={(updatedUser) => {
+            setCurrentUser(updatedUser);
+            localStorage.setItem('bairromap_user', JSON.stringify(updatedUser));
+          }}
+          pickedCoord={pickedCoord}
+          onOpenRegisterModal={() => {
+            setIsCompanyManagerOpen(false);
+            setIsRegisterOpen(true);
+          }}
+          onOpenCreatePlace={() => {
+            setIsCompanyManagerOpen(false);
+            setIsRegisterOpen(true);
+          }}
+          onViewOnMap={(place) => {
+            setSelectedPlace(place);
+            setMapCenterCoord({ lat: place.lat, lng: place.lng, zoom: 16 });
+            setIsCompanyManagerOpen(false);
+            setIsSidePanelOpen(true);
+          }}
+          onStartPickingLocation={() => {
+            handleStartPickingLocation('companyManager');
+          }}
+        />
+      )}
+
+      {/* Resident Profile & Saved Places Modal */}
+      {isResidentProfileOpen && currentUser && (
+        <ResidentProfileModal
+          isOpen={isResidentProfileOpen}
+          onClose={() => setIsResidentProfileOpen(false)}
+          currentUser={currentUser}
+          savedPlaces={places.filter((p) => savedPlaceIds.includes(p.id))}
+          onSelectPlace={(place) => {
+            setSelectedPlace(place);
+            setMapCenterCoord({ lat: place.lat, lng: place.lng, zoom: 16 });
+            setIsResidentProfileOpen(false);
+            setCurrentView('map');
+          }}
+          onRemoveSaved={handleToggleSavePlace}
+          onUpgradeToCompany={() => {
+            setIsResidentProfileOpen(false);
+            setIsRegisterOpen(true);
+          }}
+          onLogout={async () => {
+            try {
+              await signOut(auth);
+            } catch (e) {
+              console.warn(e);
+            }
+            localStorage.removeItem('bairromap_user');
+            setCurrentUser(null);
+            setIsResidentProfileOpen(false);
+            setGpsToast('Você saiu da sua conta.');
+            setTimeout(() => setGpsToast(null), 2500);
+          }}
+        />
+      )}
 
     </div>
   );

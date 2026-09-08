@@ -1,12 +1,9 @@
 {
-  "projectId": "liquid-dub-x8gvj",
-  "appId": "1:835915132493:web:4a7ee25c2180d37f79f604",
-  "apiKey": "AIzaSyDAKqJapgr6Nxt758eO0L6_xfphfkIuK2Y",
-  "authDomain": "liquid-dub-x8gvj.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-bairromapguiareg-92ea9b23-290c-4871-a93d-79f1da96ea2e",
-  "storageBucket": "liquid-dub-x8gvj.firebasestorage.app",
-  "messagingSenderId": "835915132493",
-  "measurementId": "",
-  "oAuthClientId": "835915132493-ijqj88pc3jbdbpqged1lkur35almu5tk.apps.googleusercontent.com",
-  "recaptchaSiteKey": ""
+  "projectId": "bairroscity",
+  "appId": "1:567922637659:web:59418647b8f95c7964787e",
+  "apiKey": "AIzaSyBvfC9BawWkxnMS6cdokwpCeND6SF1gTow",
+  "authDomain": "bairroscity.firebaseapp.com",
+  "storageBucket": "bairroscity.firebasestorage.app",
+  "messagingSenderId": "567922637659",
+  "measurementId": "G-95GV9XRX4E"
 }

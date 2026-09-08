@@ -1,62 +1,63 @@
 import React, { useState, useEffect } from 'react';
-import { CategoryType, Place } from '../types';
-import { CATEGORY_CONFIG, NEIGHBORHOODS } from '../data/initialPlaces';
 import {
   X,
-  Store,
-  Calendar,
   MapPin,
+  Calendar,
   Clock,
-  Phone,
   MessageCircle,
-  Instagram,
-  Image as ImageIcon,
-  Sparkles,
+  Phone,
   Check,
+  Building2,
   MousePointerClick,
-  Upload,
-  Camera,
+  Store,
+  Sparkles,
+  Ticket,
+  Image as ImageIcon,
+  LogIn
 } from 'lucide-react';
+import { Place, CategoryType, UserProfile } from '../types';
+import { CATEGORY_CONFIG, NEIGHBORHOODS } from '../data/initialPlaces';
+import { loginWithGoogle } from '../services/authService';
 
 interface RegisterModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSavePlace: (place: Omit<Place, 'id' | 'rating' | 'reviewsCount' | 'reviews' | 'createdAt'>) => void;
-  pickedCoord: { lat: number; lng: number } | null;
+  onSavePlace: (placeData: Omit<Place, 'id' | 'rating' | 'reviewsCount' | 'reviews' | 'createdAt'>) => void;
+  pickedCoord?: { lat: number; lng: number } | null;
   onStartPickingLocation: () => void;
+  currentUser: UserProfile | null;
+  onUserRoleUpdated: (updatedUser: UserProfile) => void;
+  onOpenAuthModal?: () => void;
+  onOpenCompanyManager?: () => void;
 }
 
-const PRESET_IMAGES: Record<string, string[]> = {
-  restaurant: [
-    'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1544025162-d76694265947?w=800&auto=format&fit=crop&q=80',
-  ],
-  cafe: [
-    'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=800&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=800&auto=format&fit=crop&q=80',
-  ],
-  shopping: [
-    'https://images.unsplash.com/photo-1567449303078-57ad995bd301?w=800&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1519567241046-7f570eee3ce6?w=800&auto=format&fit=crop&q=80',
-  ],
-  leisure: [
-    'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=800&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1519331379826-f10be5486c6f?w=800&auto=format&fit=crop&q=80',
-  ],
-  event: [
-    'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&auto=format&fit=crop&q=80',
-  ],
-  nightlife: [
-    'https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=800&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1572116469696-31de0f17cc34?w=800&auto=format&fit=crop&q=80',
-  ],
-  services: [
-    'https://images.unsplash.com/photo-1485965120184-e220f721d03e?w=800&auto=format&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1521791136064-7986c2920216?w=800&auto=format&fit=crop&q=80',
-  ],
-};
+const PRESET_EVENT_IMAGES = [
+  'https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?w=800&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1511578314322-379afb476865?w=800&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&auto=format&fit=crop&q=80',
+];
+
+const GoogleIcon: React.FC<{ className?: string }> = ({ className = 'w-5 h-5' }) => (
+  <svg className={className} viewBox="0 0 24 24">
+    <path
+      fill="#4285F4"
+      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+    />
+    <path
+      fill="#34A853"
+      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+    />
+    <path
+      fill="#FBBC05"
+      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+    />
+    <path
+      fill="#EA4335"
+      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+    />
+  </svg>
+);
 
 export const RegisterModal: React.FC<RegisterModalProps> = ({
   isOpen,
@@ -64,55 +65,48 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
   onSavePlace,
   pickedCoord,
   onStartPickingLocation,
+  currentUser,
+  onUserRoleUpdated,
+  onOpenAuthModal,
+  onOpenCompanyManager,
 }) => {
-  if (!isOpen) return null;
-
-  const [activeType, setActiveType] = useState<'business' | 'event'>('business');
   const [name, setName] = useState('');
-  const [category, setCategory] = useState<CategoryType>('restaurant');
-  const [subCategory, setSubCategory] = useState('');
+  const [subCategory, setSubCategory] = useState('Feira Gastronômica & Cultural');
   const [description, setDescription] = useState('');
   const [address, setAddress] = useState('');
-  const [neighborhood, setNeighborhood] = useState('Curado IV');
+  const [neighborhood, setNeighborhood] = useState(currentUser?.neighborhood || 'Curado IV');
   const [city, setCity] = useState('Recife');
-  const [whatsapp, setWhatsapp] = useState('');
+  const [whatsapp, setWhatsapp] = useState(currentUser?.phone || '');
   const [phone, setPhone] = useState('');
-  const [instagram, setInstagram] = useState('');
-  const [hours, setHours] = useState('Seg a Sáb: 08:00 - 20:00');
-  const [imageUrl, setImageUrl] = useState('');
-  const [logoUrl, setLogoUrl] = useState('');
-  const [priceRange, setPriceRange] = useState<'$' | '$$' | '$$$' | '$$$$'>('$$');
+  const [imageUrl, setImageUrl] = useState(PRESET_EVENT_IMAGES[0]);
 
-  // Event specific
+  // Event specific fields
   const [eventDate, setEventDate] = useState('2026-09-12');
   const [eventEndDate, setEventEndDate] = useState('2026-09-13');
   const [eventTime, setEventTime] = useState('17:00 às 23:00');
   const [isFree, setIsFree] = useState(true);
+  const [ticketInfo, setTicketInfo] = useState('');
 
-  // Map coordinates (centered on Curado / Recife)
+  // Map coordinates
   const [lat, setLat] = useState<number>(-8.0645);
   const [lng, setLng] = useState<number>(-34.9855);
 
   const [error, setError] = useState('');
+  const [loadingGoogle, setLoadingGoogle] = useState(false);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, target: 'logo' | 'image') => {
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onload = () => {
         if (typeof reader.result === 'string') {
-          if (target === 'logo') {
-            setLogoUrl(reader.result);
-          } else {
-            setImageUrl(reader.result);
-          }
+          setImageUrl(reader.result);
         }
       };
       reader.readAsDataURL(file);
     }
   };
 
-  // When pickedCoord updates from map click
   useEffect(() => {
     if (pickedCoord) {
       setLat(pickedCoord.lat);
@@ -120,64 +114,57 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
     }
   }, [pickedCoord]);
 
-  // Handle activeType change
-  useEffect(() => {
-    if (activeType === 'event') {
-      setCategory('event');
-      if (!subCategory) setSubCategory('Feira Gastronômica & Cultural');
-    } else {
-      if (category === 'event') {
-        setCategory('restaurant');
+  const handleGoogleLogin = async () => {
+    setError('');
+    setLoadingGoogle(true);
+    try {
+      const user = await loginWithGoogle('morador');
+      onUserRoleUpdated(user);
+    } catch (err: any) {
+      if (err?.code !== 'auth/popup-closed-by-user' && err?.code !== 'auth/cancelled-popup-request') {
+        setError(err.message || 'Falha ao autenticar com o Google.');
       }
+    } finally {
+      setLoadingGoogle(false);
     }
-  }, [activeType]);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      setError('Por favor, informe o nome do estabelecimento ou evento.');
+      setError('Por favor, informe o nome do evento.');
       return;
     }
     if (!address.trim()) {
-      setError('Por favor, informe o endereço ou localização de referência.');
+      setError('Por favor, informe o local ou endereço do evento.');
       return;
     }
 
-    const finalImage =
-      imageUrl.trim() ||
-      PRESET_IMAGES[category]?.[0] ||
-      'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&auto=format&fit=crop&q=80';
-
-    const finalLogo = logoUrl.trim() || finalImage;
-
     onSavePlace({
       name: name.trim(),
-      category,
-      subCategory: subCategory.trim() || CATEGORY_CONFIG[category]?.name || 'Geral',
-      description: description.trim() || 'Venha conhecer nosso espaço e serviços de qualidade no bairro!',
+      category: 'event',
+      subCategory: subCategory.trim() || 'Evento Comunitário',
+      description: description.trim() || 'Evento aberto para toda a comunidade do bairro!',
       address: address.trim(),
-      neighborhood: neighborhood.trim() || 'Centro',
-      city: city.trim() || 'Região Central',
+      neighborhood: neighborhood.trim() || 'Curado IV',
+      city: city.trim() || 'Recife',
       lat,
       lng,
       whatsapp: whatsapp.trim() || undefined,
       phone: phone.trim() || undefined,
-      instagram: instagram.trim() || undefined,
-      hours: hours.trim() || undefined,
-      imageUrl: finalImage,
-      logoUrl: finalLogo,
-      isRegisteredCompany: activeType === 'business',
-      isEvent: activeType === 'event',
-      eventDate: activeType === 'event' ? eventDate : undefined,
-      eventEndDate: activeType === 'event' ? eventEndDate : undefined,
-      eventTime: activeType === 'event' ? eventTime : undefined,
-      isFree: activeType === 'event' ? isFree : undefined,
-      priceRange,
+      imageUrl: imageUrl.trim() || PRESET_EVENT_IMAGES[0],
+      isRegisteredCompany: false,
+      isEvent: true,
+      eventDate,
+      eventEndDate: eventEndDate || undefined,
+      eventTime,
+      isFree,
+      priceRange: isFree ? '$' : '$$',
       tags: [
-        category,
+        'Evento',
         subCategory.trim(),
         neighborhood.trim(),
-        activeType === 'event' ? 'Evento' : 'Empresa Cadastrada',
+        isFree ? 'Gratuito' : 'Ingressos',
         'BairrosCity',
       ].filter(Boolean),
     });
@@ -185,503 +172,391 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
     onClose();
   };
 
+  if (!isOpen) return null;
+
   return (
     <div
       id="register-modal-backdrop"
-      className="fixed inset-0 z-[1200] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
+      className="fixed inset-0 z-[1250] bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in"
       onClick={onClose}
     >
       <div
         id="register-modal-content"
-        className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden my-auto max-h-[92vh] flex flex-col"
+        className="relative w-full max-w-2xl bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl overflow-hidden my-auto max-h-[92vh] flex flex-col text-slate-100"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
-          <div>
-            <h2 className="text-lg sm:text-xl font-extrabold text-slate-900">
-              Cadastrar no Mapa da Região
-            </h2>
-            <p className="text-xs text-slate-500">
-              Divulgue sua empresa, loja, praça de lazer ou evento comunitário
-            </p>
+        <div className="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-2xl bg-purple-500/20 border border-purple-500/40 text-purple-400 flex items-center justify-center">
+              <Calendar className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-base sm:text-lg font-black text-white tracking-tight">
+                Cadastrar Evento ou Lazer no Mapa
+              </h2>
+              <p className="text-[11px] text-slate-400">
+                Divulgue programações culturais, feiras comunitárias e lazer no seu bairro
+              </p>
+            </div>
           </div>
           <button
             id="close-register-modal-btn"
             type="button"
             onClick={onClose}
-            className="p-2 rounded-full hover:bg-slate-200/80 text-slate-500 hover:text-slate-700 transition-colors"
+            className="p-2 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Tab Switcher: Empresa vs Evento */}
-        <div className="px-4 sm:px-6 pt-4">
-          <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-2xl">
-            <button
-              type="button"
-              onClick={() => setActiveType('business')}
-              className={`flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                activeType === 'business'
-                  ? 'bg-white text-indigo-600 shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Store className="w-4 h-4" />
-              <span>Empresa / Estabelecimento</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveType('event')}
-              className={`flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                activeType === 'event'
-                  ? 'bg-purple-600 text-white shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Calendar className="w-4 h-4" />
-              <span>Evento / Feira / Passeio</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-4 sm:p-6 overflow-y-auto space-y-4">
-          {error && (
-            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold">
-              {error}
+        {/* CONDITION 1: NOT LOGGED IN */}
+        {!currentUser && (
+          <div className="p-6 sm:p-8 space-y-6 text-center">
+            <div className="w-16 h-16 rounded-3xl bg-purple-500/10 border border-purple-500/30 text-purple-400 mx-auto flex items-center justify-center">
+              <Calendar className="w-8 h-8" />
             </div>
-          )}
-
-          {/* Name & Category */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Nome do {activeType === 'event' ? 'Evento' : 'Estabelecimento'} *
-              </label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={
-                  activeType === 'event'
-                    ? 'Ex: Feira de Artesanato & Sabores'
-                    : 'Ex: Restaurante Sabor da Vila'
-                }
-                className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-                required
-              />
+              <h3 className="text-xl font-bold text-white">Faça login para cadastrar um evento</h3>
+              <p className="text-xs sm:text-sm text-slate-400 mt-2 max-w-md mx-auto leading-relaxed">
+                Para publicar programações no mapa do bairro, é necessário estar conectado com sua conta.
+              </p>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Categoria Principal *
-              </label>
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value as CategoryType)}
-                className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+            {error && (
+              <div className="p-3 rounded-xl bg-red-950/60 border border-red-800/80 text-red-300 text-xs text-left">
+                {error}
+              </div>
+            )}
+
+            <div className="space-y-3 max-w-md mx-auto">
+              <button
+                type="button"
+                onClick={handleGoogleLogin}
+                disabled={loadingGoogle}
+                className="w-full py-3.5 px-4 rounded-2xl bg-white hover:bg-slate-100 text-slate-900 font-black text-sm tracking-wide transition-all shadow-xl flex items-center justify-center gap-3 cursor-pointer disabled:opacity-60"
               >
-                {activeType === 'business' ? (
-                  <>
-                    <option value="restaurant">Restaurante & Gastronomia</option>
-                    <option value="cafe">Café & Padaria</option>
-                    <option value="shopping">Shopping & Centro Comercial</option>
-                    <option value="leisure">Praça, Parque & Lazer</option>
-                    <option value="nightlife">Bar & Vida Noturna</option>
-                    <option value="services">Serviços & Comércio Geral</option>
-                  </>
+                {loadingGoogle ? (
+                  <div className="w-5 h-5 border-2 border-slate-900 border-t-transparent rounded-full animate-spin" />
                 ) : (
-                  <>
-                    <option value="event">Evento & Festival</option>
-                    <option value="leisure">Passeio Público / Parque</option>
-                    <option value="restaurant">Feira Gastronômica</option>
-                  </>
+                  <GoogleIcon className="w-5 h-5" />
                 )}
-              </select>
+                <span>Entrar com o Google</span>
+              </button>
+
+              {onOpenAuthModal && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenAuthModal();
+                  }}
+                  className="w-full py-3 px-4 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer border border-slate-700"
+                >
+                  <LogIn className="w-4 h-4 text-purple-400" />
+                  <span>Cadastrar ou Entrar com E-mail</span>
+                </button>
+              )}
             </div>
           </div>
+        )}
 
-          {/* Subcategory & Description */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Tipo / Subcategoria
-              </label>
-              <input
-                type="text"
-                value={subCategory}
-                onChange={(e) => setSubCategory(e.target.value)}
-                placeholder="Ex: Pizzaria Forno a Lenha, Parque Infantil, Feira"
-                className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-              />
+        {/* CONDITION 2: LOGGED IN - FORM DEDICATED TO EVENTS */}
+        {currentUser && (
+          <>
+            {/* Active Mode Banner: Only Event / Feira / Lazer */}
+            <div className="px-4 sm:px-6 pt-4">
+              <div className="p-3 rounded-2xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-purple-400 animate-pulse" />
+                  <span className="text-xs font-bold text-purple-300">Publicação de Evento / Feira / Lazer Comunitário</span>
+                </div>
+                {onOpenCompanyManager && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onOpenCompanyManager();
+                    }}
+                    className="text-[11px] text-lime-400 hover:text-lime-300 font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                  >
+                    <Building2 className="w-3.5 h-3.5" />
+                    <span>Cadastrar Empresa Fixa?</span>
+                  </button>
+                )}
+              </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Faixa de Preço
-              </label>
-              <select
-                value={priceRange}
-                onChange={(e) => setPriceRange(e.target.value as any)}
-                className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-              >
-                <option value="$">$ Econômico / Gratuito</option>
-                <option value="$$">$$ Médio / Acessível</option>
-                <option value="$$$">$$$ Premium</option>
-                <option value="$$$$">$$$$ Sofisticado</option>
-              </select>
-            </div>
-          </div>
+            {error && (
+              <div className="mx-6 mt-3 p-3 rounded-xl bg-red-950/60 border border-red-800/80 text-red-300 text-xs">
+                {error}
+              </div>
+            )}
 
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Descrição do Local ou Programação
-            </label>
-            <textarea
-              rows={2}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Descreva o que a sua empresa oferece, diferenciais, pratos principais, atrações ou regras..."
-              className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white leading-relaxed"
-            />
-          </div>
+            {/* Form Body */}
+            <form onSubmit={handleSubmit} className="p-4 sm:p-6 overflow-y-auto space-y-4 flex-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Nome do Evento */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">
+                    Nome do Evento / Feira / Atração *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Ex: Feira de Artesanato do Curado, Festival de Música"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-800/80 border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-purple-400"
+                  />
+                </div>
 
-          {/* EVENT-SPECIFIC FIELDS */}
-          {activeType === 'event' && (
-            <div className="p-3.5 rounded-2xl bg-purple-50/70 border border-purple-200 space-y-3">
-              <div className="text-xs font-bold text-purple-900 flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-purple-600" />
-                <span>Configurações do Evento</span>
+                {/* Tipo / Ramo do Evento */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">
+                    Tipo de Evento / Programação *
+                  </label>
+                  <select
+                    value={subCategory}
+                    onChange={(e) => setSubCategory(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-800/80 border border-slate-700 text-sm text-white focus:outline-none focus:border-purple-400"
+                  >
+                    <option value="Feira Gastronômica & Comunitária">Feira Gastronômica & Comunitária</option>
+                    <option value="Feira de Artesanato & Moda">Feira de Artesanato & Moda</option>
+                    <option value="Show & Música ao Vivo">Show & Música ao Vivo</option>
+                    <option value="Torneio ou Atividade Esportiva">Torneio ou Atividade Esportiva</option>
+                    <option value="Atração Infantil & Recreação">Atração Infantil & Recreação</option>
+                    <option value="Teatro & Apresentação Cultural">Teatro & Apresentação Cultural</option>
+                    <option value="Bazar Beneficente & Trocas">Bazar Beneficente & Trocas</option>
+                    <option value="Outro Lazer Comunitário">Outro Lazer Comunitário</option>
+                  </select>
+                </div>
               </div>
 
+              {/* Datas e Horários */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-[11px] font-semibold text-purple-900 mb-1">
-                    Data de Início
+                  <label className="block text-xs font-bold text-slate-300 mb-1">
+                    Data de Início *
                   </label>
                   <input
                     type="date"
+                    required
                     value={eventDate}
                     onChange={(e) => setEventDate(e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-purple-200 focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-800/80 border border-slate-700 text-sm text-white focus:outline-none focus:border-purple-400"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-purple-900 mb-1">
+                  <label className="block text-xs font-bold text-slate-300 mb-1">
                     Data de Término
                   </label>
                   <input
                     type="date"
                     value={eventEndDate}
                     onChange={(e) => setEventEndDate(e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-purple-200 focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-800/80 border border-slate-700 text-sm text-white focus:outline-none focus:border-purple-400"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-purple-900 mb-1">
-                    Horário
+                  <label className="block text-xs font-bold text-slate-300 mb-1">
+                    Horário da Programação
+                  </label>
+                  <div className="relative">
+                    <Clock className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                    <input
+                      type="text"
+                      value={eventTime}
+                      onChange={(e) => setEventTime(e.target.value)}
+                      placeholder="Ex: 17:00 às 22:00"
+                      className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-800/80 border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-purple-400"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Entrada Gratuita ou Paga & Bairro */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">
+                    Entrada / Ingresso
+                  </label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsFree(true)}
+                      className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        isFree ? 'bg-emerald-500 text-slate-950 shadow-md' : 'bg-slate-800 text-slate-400'
+                      }`}
+                    >
+                      Gratuito
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsFree(false)}
+                      className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        !isFree ? 'bg-amber-500 text-slate-950 shadow-md' : 'bg-slate-800 text-slate-400'
+                      }`}
+                    >
+                      Pago / Ingresso
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">
+                    Bairro de Realização *
+                  </label>
+                  <select
+                    value={neighborhood}
+                    onChange={(e) => setNeighborhood(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-800/80 border border-slate-700 text-sm text-white focus:outline-none focus:border-purple-400"
+                  >
+                    {NEIGHBORHOODS.map((nb) => (
+                      <option key={nb} value={nb} className="bg-slate-900 text-white">
+                        {nb}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">
+                    Cidade
                   </label>
                   <input
                     type="text"
-                    value={eventTime}
-                    onChange={(e) => setEventTime(e.target.value)}
-                    placeholder="Ex: 17:00 às 23:00"
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-purple-200 focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-800/80 border border-slate-700 text-sm text-white focus:outline-none focus:border-purple-400"
                   />
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 pt-1">
-                <label className="inline-flex items-center gap-2 text-xs font-semibold text-purple-900 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={isFree}
-                    onChange={(e) => setIsFree(e.target.checked)}
-                    className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500"
-                  />
-                  <span>Evento com Entrada Gratuita para o público</span>
+              {/* Endereço & Referência */}
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">
+                  Endereço & Ponto de Referência do Evento *
                 </label>
+                <div className="relative">
+                  <MapPin className="w-4 h-4 absolute left-3 top-2.5 text-purple-400" />
+                  <input
+                    type="text"
+                    required
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    placeholder="Praça central, quadra de esportes, rua ou galpão"
+                    className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-800/80 border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-purple-400"
+                  />
+                </div>
               </div>
-            </div>
-          )}
 
-          {/* Address & Neighborhood */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="sm:col-span-2">
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Endereço Completo (Rua e Número) *
-              </label>
-              <input
-                type="text"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                placeholder="Ex: Rua das Flores, 120"
-                className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Bairro *
-              </label>
-              <select
-                value={neighborhood}
-                onChange={(e) => setNeighborhood(e.target.value)}
-                className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-                required
-              >
-                {NEIGHBORHOODS.map((nb) => (
-                  <option key={nb} value={nb}>
-                    {nb}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Map Location Pin Picker */}
-          <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
-              <div className="flex items-center gap-1.5">
-                <MapPin className="w-4 h-4 text-indigo-600" />
-                <span className="text-xs font-bold text-slate-800">
-                  Localização Exata no Mapa
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  onStartPickingLocation();
-                }}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-colors border border-indigo-200 shrink-0"
-              >
-                <MousePointerClick className="w-3.5 h-3.5" />
-                <span>Marcar Clicando no Mapa</span>
-              </button>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div>
-                <span className="text-slate-500 text-[11px]">Latitude:</span>
-                <input
-                  type="number"
-                  step="0.0001"
-                  value={lat}
-                  onChange={(e) => setLat(parseFloat(e.target.value))}
-                  className="w-full px-2.5 py-1.5 mt-0.5 rounded-lg border border-slate-300 bg-white font-mono text-xs"
-                />
-              </div>
-              <div>
-                <span className="text-slate-500 text-[11px]">Longitude:</span>
-                <input
-                  type="number"
-                  step="0.0001"
-                  value={lng}
-                  onChange={(e) => setLng(parseFloat(e.target.value))}
-                  className="w-full px-2.5 py-1.5 mt-0.5 rounded-lg border border-slate-300 bg-white font-mono text-xs"
-                />
-              </div>
-            </div>
-            <p className="text-[11px] text-slate-500 mt-1.5">
-              💡 Dica: Você pode clicar no botão acima para selecionar a posição diretamente no mapa da sua cidade ou bairro!
-            </p>
-          </div>
-
-          {/* Contacts */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
-                <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
-                <span>WhatsApp (com DDD)</span>
-              </label>
-              <input
-                type="text"
-                value={whatsapp}
-                onChange={(e) => setWhatsapp(e.target.value)}
-                placeholder="Ex: 11987654321"
-                className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5 text-slate-500" />
-                <span>Horário</span>
-              </label>
-              <input
-                type="text"
-                value={hours}
-                onChange={(e) => setHours(e.target.value)}
-                placeholder="Ex: Seg a Sex: 8h - 18h"
-                className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
-                <Instagram className="w-3.5 h-3.5 text-pink-600" />
-                <span>Instagram</span>
-              </label>
-              <input
-                type="text"
-                value={instagram}
-                onChange={(e) => setInstagram(e.target.value)}
-                placeholder="Ex: @minhaempresa"
-                className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-              />
-            </div>
-          </div>
-
-          {/* LOGO / FOTO DA EMPRESA (Diferencial no Mapa) */}
-          <div className="p-3.5 rounded-2xl bg-lime-50/70 border border-lime-200 space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                <Camera className="w-4 h-4 text-lime-600" />
-                <span>Logo / Foto da Empresa (Aparece como foto no mapa)</span>
-              </label>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-lime-200 text-lime-800">
-                Destaque no Mapa
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-600 leading-snug">
-              Empresas cadastradas no BairrosCity aparecem com a sua própria foto/logo em um círculo destacado no mapa para se diferenciar!
-            </p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
-              <div className="sm:col-span-2 space-y-2">
-                <input
-                  type="url"
-                  value={logoUrl}
-                  onChange={(e) => setLogoUrl(e.target.value)}
-                  placeholder="URL do Logo ou Foto (ex: https://...)"
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-lime-300 focus:outline-none focus:ring-2 focus:ring-lime-500 bg-white"
-                />
-
-                <div className="flex items-center gap-2">
-                  <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-50 cursor-pointer transition-colors shadow-xs">
-                    <Upload className="w-3.5 h-3.5 text-lime-600" />
-                    <span>Carregar Foto do Computador</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => handleFileUpload(e, 'logo')}
-                    />
+              {/* WhatsApp de Contato / Informações */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">
+                    WhatsApp do Organizador / Informações
                   </label>
-                  {logoUrl && (
-                    <button
-                      type="button"
-                      onClick={() => setLogoUrl('')}
-                      className="text-[11px] text-red-600 hover:underline"
-                    >
-                      Remover foto
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Live Pin Preview */}
-              <div className="p-2.5 rounded-xl bg-white border border-lime-200 flex flex-col items-center justify-center text-center shadow-xs">
-                <span className="text-[10px] font-bold text-slate-500 mb-1.5">Prévia no Mapa:</span>
-                <div className="relative flex items-center gap-2">
-                  <div className="relative w-10 h-10 rounded-full border-2 border-lime-500 shadow-md overflow-hidden bg-slate-100 flex items-center justify-center shrink-0">
-                    {logoUrl || imageUrl ? (
-                      <img
-                        src={logoUrl || imageUrl}
-                        alt="Prévia"
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <Store className="w-5 h-5 text-slate-400" />
-                    )}
-                    <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-lime-500 text-slate-950 font-black rounded-full text-[8px] flex items-center justify-center border border-white">
-                      ✓
-                    </div>
+                  <div className="relative">
+                    <MessageCircle className="w-4 h-4 absolute left-3 top-2.5 text-emerald-400" />
+                    <input
+                      type="tel"
+                      value={whatsapp}
+                      onChange={(e) => setWhatsapp(e.target.value)}
+                      placeholder="(81) 98888-7777"
+                      className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-800/80 border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-purple-400"
+                    />
                   </div>
-                  <div className="text-left">
-                    <div className="text-[11px] font-bold text-slate-900 leading-tight">
-                      {name.trim() || 'Sua Empresa'}
-                    </div>
-                    <span className="text-[9px] font-extrabold text-lime-700 bg-lime-100 px-1 rounded">
-                      BairrosCity
-                    </span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1">
+                    Telefone de Apoio (Opcional)
+                  </label>
+                  <div className="relative">
+                    <Phone className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="(81) 3333-2222"
+                      className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-800/80 border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-purple-400"
+                    />
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
 
-          {/* Image Selection / Banner */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
-              <ImageIcon className="w-3.5 h-3.5 text-indigo-600" />
-              <span>Foto de Capa / Fachada ou Selecione uma Foto Sugerida</span>
-            </label>
-            <div className="flex gap-2 mb-2">
-              <input
-                type="url"
-                value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
-                placeholder="Cole o link da foto de capa ou escolha abaixo..."
-                className="flex-1 px-3.5 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-              />
-              <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-50 cursor-pointer shrink-0">
-                <Upload className="w-3.5 h-3.5 text-indigo-600" />
-                <span>Upload</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => handleFileUpload(e, 'image')}
+              {/* Descrição */}
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1">
+                  Descrição da Programação & Atrações
+                </label>
+                <textarea
+                  rows={2}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Detalhes dos shows, expositores, horários das apresentações, estrutura..."
+                  className="w-full px-3 py-2 rounded-xl bg-slate-800/80 border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-purple-400"
                 />
-              </label>
-            </div>
+              </div>
 
-            {/* Quick preset gallery */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-1">
-              {(PRESET_IMAGES[category] || PRESET_IMAGES.restaurant).map((img, idx) => (
+              {/* Imagem / Cartaz Presets */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-300">
+                  Cartaz ou Foto do Evento
+                </label>
+                <div className="grid grid-cols-4 gap-2">
+                  {PRESET_EVENT_IMAGES.map((img, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setImageUrl(img)}
+                      className={`relative h-14 rounded-xl overflow-hidden border-2 transition-all cursor-pointer ${
+                        imageUrl === img ? 'border-purple-400 scale-[1.02]' : 'border-slate-700 hover:border-slate-500'
+                      }`}
+                    >
+                      <img src={img} alt="Preset" className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Localização no mapa */}
+              <div className="p-3.5 rounded-2xl bg-slate-800/50 border border-slate-700/60 flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-white">
+                    <MapPin className="w-4 h-4 text-purple-400" />
+                    <span>Ponto Exato no Mapa do Bairro</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Coordenadas: {lat.toFixed(4)}, {lng.toFixed(4)}
+                  </p>
+                </div>
                 <button
-                  key={idx}
                   type="button"
-                  onClick={() => setImageUrl(img)}
-                  className={`relative w-20 h-14 rounded-lg overflow-hidden shrink-0 border-2 transition-all ${
-                    imageUrl === img ? 'border-indigo-600 ring-2 ring-indigo-400' : 'border-slate-200 opacity-70 hover:opacity-100'
-                  }`}
+                  onClick={onStartPickingLocation}
+                  className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-sm"
                 >
-                  <img src={img} alt="Preset" className="w-full h-full object-cover" />
-                  {imageUrl === img && (
-                    <div className="absolute inset-0 bg-indigo-600/30 flex items-center justify-center">
-                      <Check className="w-4 h-4 text-white" />
-                    </div>
-                  )}
+                  <MousePointerClick className="w-3.5 h-3.5" />
+                  <span>Escolher no Mapa</span>
                 </button>
-              ))}
-            </div>
-          </div>
+              </div>
 
-          {/* Submit footer */}
-          <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              id="confirm-register-btn"
-              type="submit"
-              className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-colors shadow-sm"
-            >
-              Salvar e Publicar no Mapa
-            </button>
-          </div>
-        </form>
+              {/* Submit Button */}
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  className="w-full py-3.5 rounded-2xl bg-purple-500 hover:bg-purple-400 text-slate-950 font-black text-sm tracking-wide shadow-lg shadow-purple-500/25 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-[0.99]"
+                >
+                  <Check className="w-5 h-5" />
+                  <span>Confirmar e Publicar Evento no Mapa</span>
+                </button>
+              </div>
+            </form>
+          </>
+        )}
       </div>
     </div>
   );
