@@ -30,7 +30,7 @@ export function useRealtimeLocation(
   // Always initialize with default location so the user marker is NEVER missing!
   const [userLocation, setUserLocation] = useState<UserLocation | null>(DEFAULT_INITIAL_LOCATION);
   const [isTracking, setIsTracking] = useState<boolean>(true);
-  const [isFollowing, setIsFollowing] = useState<boolean>(true);
+  const [isFollowing, setIsFollowing] = useState<boolean>(false);
   const [markerStyle, setMarkerStyle] = useState<'arrow' | 'pegman'>('arrow');
   const [deviceHeading, setDeviceHeading] = useState<number | null>(null);
 
@@ -50,10 +50,15 @@ export function useRealtimeLocation(
       }
 
       if (compassHeading !== null) {
-        setDeviceHeading(compassHeading);
+        const roundedHeading = Math.round(compassHeading);
+        setDeviceHeading((prev) => {
+          if (prev !== null && Math.abs(prev - roundedHeading) < 3) return prev;
+          return roundedHeading;
+        });
         setUserLocation((prev) => {
           if (!prev) return prev;
-          return { ...prev, heading: compassHeading };
+          if (prev.heading !== undefined && Math.abs(prev.heading - roundedHeading) < 3) return prev;
+          return { ...prev, heading: roundedHeading };
         });
       }
     };
@@ -75,7 +80,6 @@ export function useRealtimeLocation(
     }
 
     setIsTracking(true);
-    setIsFollowing(true);
 
     if (watchIdRef.current !== null) {
       navigator.geolocation.clearWatch(watchIdRef.current);

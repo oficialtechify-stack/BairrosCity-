@@ -598,11 +598,13 @@ export default function App() {
               onToggleMenu={() => setIsMenuOpen(true)}
               places={places}
               onSelectPlace={(place) => {
+                setIsFollowing(false);
                 setSelectedPlace(place);
                 setMapCenterCoord({ lat: place.lat, lng: place.lng, zoom: 16 });
                 setIsSidePanelOpen(true);
               }}
               onSelectCoordinates={(coords, label) => {
+                setIsFollowing(false);
                 setMapCenterCoord(coords);
                 setSelectedPlace(null);
                 setCurrentStreetNode(
@@ -694,6 +696,7 @@ export default function App() {
                     places={filteredPlaces}
                     selectedPlace={selectedPlace}
                     onSelectPlace={(place) => {
+                      setIsFollowing(false);
                       setSelectedPlace(place);
                       setCurrentStreetNode(getStreetViewNodeForLocation(place.name, place.address, place.lat, place.lng));
                       setMapCenterCoord({ lat: place.lat, lng: place.lng, zoom: 16 });
@@ -736,6 +739,7 @@ export default function App() {
                 places={filteredPlaces}
                 selectedPlace={selectedPlace}
                 onSelectPlace={(place) => {
+                  setIsFollowing(false);
                   setSelectedPlace(place);
                   setCurrentStreetNode(getStreetViewNodeForLocation(place.name, place.address, place.lat, place.lng));
                   setMapCenterCoord({ lat: place.lat, lng: place.lng, zoom: 16 });

@@ -90,6 +90,9 @@ export const MapComponent: React.FC<MapProps> = ({
   const userMarkerRef = useRef<L.Marker | null>(null);
   const radiusCircleRef = useRef<L.Circle | null>(null);
   const pickerMarkerRef = useRef<L.Marker | null>(null);
+  const hasInitialCenteredRef = useRef<boolean>(false);
+  const prevTargetCoordRef = useRef<{ lat: number; lng: number } | null>(null);
+  const isUserInteractingRef = useRef<boolean>(false);
   const [layersMenuOpen, setLayersMenuOpen] = useState<boolean>(false);
   const [mapReady, setMapReady] = useState<boolean>(false);
 
@@ -108,10 +111,36 @@ export const MapComponent: React.FC<MapProps> = ({
       attributionControl: false, // Authentic Google Maps interface
     });
 
-    // Detect user manual dragging to pause auto-follow (like Google Maps)
-    map.on('dragstart', () => {
+    // Detect user manual dragging, touches, pinches and scrolling to instantly pause auto-follow
+    const stopFollowing = () => {
+      isUserInteractingRef.current = true;
       onDragMap?.();
+      setTimeout(() => {
+        isUserInteractingRef.current = false;
+      }, 350);
+    };
+
+    map.on('dragstart', stopFollowing);
+    map.on('movestart', (e: any) => {
+      if (e.originalEvent) {
+        stopFollowing();
+      }
     });
+    map.on('zoomstart', (e: any) => {
+      if (e.originalEvent) {
+        stopFollowing();
+      }
+    });
+    map.on('touchstart', stopFollowing);
+
+    const container = mapContainerRef.current;
+    const handlePointerDown = () => stopFollowing();
+    const handleWheel = () => stopFollowing();
+    if (container) {
+      container.addEventListener('pointerdown', handlePointerDown, { passive: true });
+      container.addEventListener('touchstart', handlePointerDown, { passive: true });
+      container.addEventListener('wheel', handleWheel, { passive: true });
+    }
 
     // Tile Layer
     const { url, subdomains } = getTileConfig(activeLayer);
@@ -128,6 +157,11 @@ export const MapComponent: React.FC<MapProps> = ({
     setMapReady(true);
 
     return () => {
+      if (container) {
+        container.removeEventListener('pointerdown', handlePointerDown);
+        container.removeEventListener('touchstart', handlePointerDown);
+        container.removeEventListener('wheel', handleWheel);
+      }
       map.remove();
       mapRef.current = null;
       setMapReady(false);
@@ -485,16 +519,28 @@ export const MapComponent: React.FC<MapProps> = ({
       });
 
       userMarkerRef.current = marker;
-      map.setView([targetLat, targetLng], Math.max(map.getZoom(), 16), {
-        animate: true,
-      });
+
+      // Only center ONCE on initial marker mount if not already centered
+      if (!hasInitialCenteredRef.current) {
+        hasInitialCenteredRef.current = true;
+        map.setView([targetLat, targetLng], Math.max(map.getZoom(), 16), {
+          animate: true,
+        });
+      }
+      prevTargetCoordRef.current = { lat: targetLat, lng: targetLng };
     } else {
       // Smooth update position without destroying marker
       userMarkerRef.current.setLatLng([targetLat, targetLng]);
       userMarkerRef.current.setIcon(icon);
 
-      // If user is walking or Street View stepped, smoothly pan the map
-      if (isFollowing || streetViewActive) {
+      // Check if coordinate actually moved
+      const prev = prevTargetCoordRef.current;
+      const coordMoved = !prev || Math.abs(prev.lat - targetLat) > 0.00005 || Math.abs(prev.lng - targetLng) > 0.00005;
+      prevTargetCoordRef.current = { lat: targetLat, lng: targetLng };
+
+      // CRITICAL: NEVER pan if only heading/compass rotated or if user is interacting with map!
+      // Only pan if in Street View mode OR if follow is explicitly active AND coordinate genuinely moved
+      if (streetViewActive || (isFollowing && coordMoved && !isUserInteractingRef.current)) {
         map.panTo([targetLat, targetLng], {
           animate: true,
           duration: 0.5,
