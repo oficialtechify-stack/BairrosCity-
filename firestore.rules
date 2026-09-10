@@ -1,6 +1,13 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Coleção principal de empresas cadastradas no BairrosCity
+    match /companies/{companyId} {
+      allow read: if true;
+      allow create: if request.resource.data.name is string;
+      allow update, delete: if true;
+    }
+
     // Empresas e Locais cadastrados pelas empresas
     match /places/{placeId} {
       allow read: if true;

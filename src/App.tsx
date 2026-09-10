@@ -16,6 +16,7 @@ import { LoginGate } from './components/LoginGate';
 import { GoogleMapsMobileNav } from './components/GoogleMapsMobileNav';
 import { useRealtimeLocation } from './hooks/useRealtimeLocation';
 import { subscribePlaces, createPlaceInFirestore, addReviewToFirestore } from './services/placesService';
+import { subscribeCompanies } from './services/companiesService';
 import { auth, db, signOut, onAuthStateChanged, getDoc, doc } from './lib/firebase';
 import { loginWithGoogle } from './services/authService';
 import { Home, Users, MapPin, Plus, Navigation, LogIn, CheckCircle2, LogOut } from 'lucide-react';
@@ -111,16 +112,64 @@ export default function App() {
   const [filterSavedOnly, setFilterSavedOnly] = useState<boolean>(false);
   const [mapCenterCoord, setMapCenterCoord] = useState<{ lat: number; lng: number; zoom?: number } | null>(null);
 
-  // Subscribe to Firebase Firestore places
+  // Subscribe directly to Firebase Firestore `companies` collection (Requirement 3: RENDERIZAÇÃO NO MAPA)
   useEffect(() => {
-    const unsubscribe = subscribePlaces((firestorePlaces) => {
-      // Only real registered companies from Firestore are shown on the map
-      setPlaces(firestorePlaces);
-      setLoadingPlaces(false);
+    const unsubscribeCompanies = subscribeCompanies((companiesList) => {
+      if (companiesList && companiesList.length > 0) {
+        const placesFromCompanies: Place[] = companiesList.map((c) => ({
+          id: c.id,
+          name: c.name,
+          category: (c.category as CategoryType) || 'restaurant',
+          customCategory: c.customCategory,
+          subCategory: c.subCategory || 'Empresa Cadastrada',
+          description: c.description || 'Empresa local verificada no BairrosCity',
+          address: c.address,
+          neighborhood: c.neighborhood,
+          city: c.city || 'Recife',
+          lat: c.lat,
+          lng: c.lng,
+          whatsapp: c.whatsapp,
+          phone: c.phone,
+          instagram: c.instagram,
+          website: c.website,
+          hours: c.hours,
+          imageUrl: c.photoUrl || c.logoUrl || '',
+          logoUrl: c.logoUrl || c.photoUrl || '',
+          isRegisteredCompany: true,
+          priceRange: (c.priceRange as any) || '$$',
+          tags: [c.category, c.neighborhood, 'Empresa Cadastrada', 'BairrosCity'],
+          ownerId: c.userId,
+          ownerName: c.name,
+          ownerEmail: '',
+          productsOrServices: c.productsOrServices || [],
+          rating: c.rating || 5.0,
+          reviewsCount: c.reviewsCount || 1,
+          reviews: c.reviews || [],
+          createdAt: c.createdAt,
+          isPaused: Boolean(c.isPaused),
+        }));
+        setPlaces(placesFromCompanies);
+        setLoadingPlaces(false);
+      } else {
+        // Fallback to places collection
+        subscribePlaces((firestorePlaces) => {
+          setPlaces(firestorePlaces);
+          setLoadingPlaces(false);
+        });
+      }
     });
 
-    return () => unsubscribe();
+    return () => unsubscribeCompanies();
   }, []);
+
+  // Requirement 2: Mandatory Redirection for Company Users
+  // Ao cadastrar um usuário como "Empresa" (role === 'company' | 'empresa'), redirecione-o obrigatoriamente para o painel da sua empresa.
+  // Se o usuário logado for uma empresa e já tiver uma empresa cadastrada, redirecione sempre para o perfil/painel da empresa dele.
+  useEffect(() => {
+    if (currentUser && (currentUser.role === 'company' || currentUser.role === 'empresa')) {
+      setIsCompanyManagerOpen(true);
+    }
+  }, [currentUser?.id, currentUser?.role]);
 
   // Listen to Firebase Auth state for automatic Google user session restoration
   useEffect(() => {
@@ -148,7 +197,7 @@ export default function App() {
       const profile = await loginWithGoogle(roleOverride);
       setCurrentUser(profile);
       setCurrentView('map');
-      if (profile.role === 'empresa') {
+      if (profile.role === 'company' || profile.role === 'empresa') {
         setIsCompanyManagerOpen(true);
         setGpsToast(`Conectado como ${profile.name}! Abrindo painel da empresa.`);
       } else {

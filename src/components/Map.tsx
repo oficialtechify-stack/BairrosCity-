@@ -636,6 +636,43 @@ export const MapComponent: React.FC<MapProps> = ({
         zIndexOffset: isSelected ? 1200 : (place.isRegisteredCompany ? 500 : 100),
       }).addTo(markersGroup);
 
+      const popupHtml = `
+        <div style="font-family: inherit; width: 220px; padding: 4px; color: #0f172a;">
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+            ${hasLogoPhoto ? `
+              <img 
+                src="${logoOrPhoto}" 
+                alt="${place.name}" 
+                style="width: 44px; height: 44px; border-radius: 10px; object-fit: cover; border: 1.5px solid #e2e8f0; flex-shrink: 0;"
+                referrerpolicy="no-referrer"
+              />
+            ` : `
+              <div style="width: 44px; height: 44px; border-radius: 10px; background-color: ${config.color}; display: flex; align-items: center; justify-content: center; color: #fff; flex-shrink: 0;">
+                ${svgIcon}
+              </div>
+            `}
+            <div style="min-width: 0; flex: 1;">
+              <div style="font-weight: 800; font-size: 13px; line-height: 1.2; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                ${place.name}
+              </div>
+              <div style="font-size: 11px; color: #64748b; margin-top: 2px;">
+                ${place.subCategory || config.name}
+              </div>
+              <div style="font-size: 10px; font-weight: 700; color: #16a34a; margin-top: 2px;">
+                ⭐ ${place.rating || 5.0} • ${place.neighborhood || 'Bairro'}
+              </div>
+            </div>
+          </div>
+          ${place.address ? `
+            <div style="font-size: 11px; color: #64748b; line-height: 1.3; margin-bottom: 6px;">
+              📍 ${place.address}
+            </div>
+          ` : ''}
+        </div>
+      `;
+
+      marker.bindPopup(popupHtml, { maxWidth: 260, offset: [0, -14] });
+
       marker.on('click', () => {
         onSelectPlace(place);
       });

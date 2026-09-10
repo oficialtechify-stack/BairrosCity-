@@ -1,7 +1,10 @@
 import { auth, db, googleProvider, signInWithPopup, signOut, getDoc, doc, setDoc, updateDoc } from '../lib/firebase';
 import { UserProfile } from '../types';
 
-export async function loginWithGoogle(targetRole: 'morador' | 'empresa' = 'morador', companyName?: string): Promise<UserProfile> {
+export async function loginWithGoogle(
+  targetRole: 'morador' | 'empresa' | 'company' | 'resident' = 'resident',
+  companyName?: string
+): Promise<UserProfile> {
   const result = await signInWithPopup(auth, googleProvider);
   const user = result.user;
 
@@ -21,32 +24,54 @@ export async function loginWithGoogle(targetRole: 'morador' | 'empresa' = 'morad
     console.warn('Erro ao ler perfil do Firestore:', err);
   }
 
+  const isCompanyTarget = targetRole === 'company' || targetRole === 'empresa';
+  const canonicalRole: 'company' | 'resident' = isCompanyTarget ? 'company' : 'resident';
+
   if (existingProfile) {
-    // If the user intentionally chose to sign in/register as an empresa, upgrade or set role
-    const finalRole = targetRole === 'empresa' ? 'empresa' : existingProfile.role || 'morador';
+    // If user explicitly chose company registration/login, set to company
+    const existingIsCompany = existingProfile.role === 'company' || existingProfile.role === 'empresa';
+    const finalRole: 'company' | 'resident' = isCompanyTarget || existingIsCompany ? 'company' : 'resident';
+
     profile = {
       ...existingProfile,
+      id: user.uid,
+      uid: user.uid,
       name: existingProfile.name || user.displayName || 'Usuário Google',
-      email: user.email || existingProfile.email,
+      email: user.email || existingProfile.email || '',
       photoURL: user.photoURL || existingProfile.photoURL,
       role: finalRole,
-      companyName: finalRole === 'empresa' ? (companyName || existingProfile.companyName || user.displayName || 'Minha Empresa') : undefined,
+      companyName: finalRole === 'company' ? (companyName || existingProfile.companyName || user.displayName || 'Minha Empresa') : undefined,
+      createdAt: existingProfile.createdAt || new Date().toISOString(),
     };
   } else {
     profile = {
       id: user.uid,
+      uid: user.uid,
       name: user.displayName || 'Usuário Google',
       email: user.email || '',
-      role: targetRole,
+      role: canonicalRole,
       neighborhood: 'Curado IV',
-      companyName: targetRole === 'empresa' ? (companyName || user.displayName || 'Minha Empresa') : undefined,
+      companyName: canonicalRole === 'company' ? (companyName || user.displayName || 'Minha Empresa') : undefined,
       photoURL: user.photoURL || undefined,
       createdAt: new Date().toISOString(),
     };
   }
 
   try {
-    await setDoc(doc(db, 'users', user.uid), profile, { merge: true });
+    // Persist to Firestore with explicit uid, email, role, createdAt
+    const firestoreUserData = {
+      uid: user.uid,
+      id: user.uid,
+      email: profile.email,
+      role: profile.role,
+      name: profile.name,
+      neighborhood: profile.neighborhood,
+      companyName: profile.companyName || '',
+      photoURL: profile.photoURL || '',
+      createdAt: profile.createdAt,
+    };
+    await setDoc(doc(db, 'users', user.uid), firestoreUserData, { merge: true });
+    console.log(`[Firestore] User profile saved in 'users/${user.uid}' with role: ${profile.role}`);
   } catch (err) {
     console.warn('Erro ao salvar perfil no Firestore:', err);
   }
@@ -60,17 +85,25 @@ export async function loginWithGoogle(targetRole: 'morador' | 'empresa' = 'morad
   return profile;
 }
 
-export async function updateUserRole(userId: string, newRole: 'morador' | 'empresa', companyName?: string): Promise<UserProfile | null> {
+export async function updateUserRole(
+  userId: string,
+  newRole: 'morador' | 'empresa' | 'company' | 'resident',
+  companyName?: string
+): Promise<UserProfile | null> {
   try {
     const userRef = doc(db, 'users', userId);
     const snap = await getDoc(userRef);
     if (!snap.exists()) return null;
 
     const current = snap.data() as UserProfile;
+    const isComp = newRole === 'company' || newRole === 'empresa';
+    const canonicalRole: 'company' | 'resident' = isComp ? 'company' : 'resident';
+
     const updated: UserProfile = {
       ...current,
-      role: newRole,
-      companyName: newRole === 'empresa' ? (companyName || current.companyName || current.name) : undefined,
+      uid: userId,
+      role: canonicalRole,
+      companyName: isComp ? (companyName || current.companyName || current.name) : undefined,
     };
 
     await setDoc(userRef, updated, { merge: true });

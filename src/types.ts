@@ -119,6 +119,41 @@ export interface NeighborhoodPost {
   commentsCount: number;
 }
 
+export interface Company {
+  id: string;
+  userId: string;
+  name: string;
+  category: string;
+  neighborhood: string;
+  city: string;
+  address: string;
+  lat: number;
+  lng: number;
+  whatsapp?: string;
+  instagram?: string;
+  phone?: string;
+  hours?: string;
+  website?: string;
+  description?: string;
+  logoUrl?: string;
+  photoUrl?: string;
+  createdAt: string;
+  updatedAt: string;
+  // UI and extended features
+  subCategory?: string;
+  customCategory?: string;
+  imageUrl?: string;
+  isRegisteredCompany?: boolean;
+  rating?: number;
+  reviewsCount?: number;
+  reviews?: Review[];
+  isPaused?: boolean;
+  viewsCount?: number;
+  whatsappClicks?: number;
+  priceRange?: '$' | '$$' | '$$$' | '$$$$';
+  productsOrServices?: ProductItem[];
+}
+
 export interface CompanyDetails {
   companyName: string;
   category: CategoryType;
@@ -142,9 +177,10 @@ export interface CompanyDetails {
 
 export interface UserProfile {
   id: string;
+  uid?: string;
   name: string;
   email: string;
-  role: 'morador' | 'empresa';
+  role: 'morador' | 'empresa' | 'company' | 'resident';
   neighborhood: string;
   companyName?: string;
   phone?: string;
@@ -154,3 +190,4 @@ export interface UserProfile {
   companyPlaceId?: string;
   savedPlaceIds?: string[];
 }
+

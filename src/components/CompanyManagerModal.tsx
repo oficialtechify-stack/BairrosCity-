@@ -30,7 +30,7 @@ import {
   Image as ImageIcon,
   CheckCheck
 } from 'lucide-react';
-import { Place, UserProfile, CategoryType, ProductItem } from '../types';
+import { Place, UserProfile, CategoryType, ProductItem, Company } from '../types';
 import { CATEGORY_CONFIG, NEIGHBORHOODS } from '../data/initialPlaces';
 import { 
   updatePlaceInFirestore, 
@@ -38,6 +38,9 @@ import {
   deletePlaceFromFirestore 
 } from '../services/placesService';
 import { updateUserProfile, loginWithGoogle } from '../services/authService';
+import { uploadCompanyImage } from '../services/storageService';
+import { saveCompanyToFirestore } from '../services/companiesService';
+import { db, doc, setDoc, auth } from '../lib/firebase';
 
 const COMPANY_DRAFT_KEY = 'bairromap_company_reg_draft_v2';
 
@@ -136,6 +139,7 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
   const [regFirstProdPrice, setRegFirstProdPrice] = useState(initialDraft?.regFirstProdPrice ?? '');
   const [isUrlInputOpenLogo, setIsUrlInputOpenLogo] = useState(false);
   const [isUrlInputOpenImage, setIsUrlInputOpenImage] = useState(false);
+  const [uploadingTarget, setUploadingTarget] = useState<string | null>(null);
 
   // Hidden file input refs for professional click-to-upload experience
   const regLogoFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -299,24 +303,49 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
     }
   }, [companyPlace]);
 
-  // File upload helper
-  const handleFileUpload = (
+  // File upload helper uploading to Firebase Storage under companies/{userId}/
+  const handleFileUpload = async (
     e: React.ChangeEvent<HTMLInputElement>, 
     target: 'logo' | 'image' | 'prod' | 'regLogo' | 'regImage'
   ) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result === 'string') {
-          if (target === 'logo') setLogoUrl(reader.result);
-          else if (target === 'image') setImageUrl(reader.result);
-          else if (target === 'prod') setNewProdImage(reader.result);
-          else if (target === 'regLogo') setRegLogoUrl(reader.result);
-          else if (target === 'regImage') setRegImageUrl(reader.result);
+    if (!file) return;
+
+    setUploadingTarget(target);
+    setErrorMsg('');
+    try {
+      const activeUserId = currentUser?.uid || currentUser?.id || auth.currentUser?.uid || (companyPlace?.ownerId) || 'company_user';
+      const fileType = (target === 'logo' || target === 'regLogo') ? 'logo' : 'photo';
+      
+      const publicUrl = await uploadCompanyImage(activeUserId, file, fileType);
+      
+      if (target === 'logo') {
+        setLogoUrl(publicUrl);
+        if (companyPlace) {
+          // Immediately sync logoUrl to company document in Firestore
+          await saveCompanyToFirestore(activeUserId, { logoUrl: publicUrl }, companyPlace.id);
         }
-      };
-      reader.readAsDataURL(file);
+      } else if (target === 'image') {
+        setImageUrl(publicUrl);
+        if (companyPlace) {
+          // Immediately sync photoUrl to company document in Firestore
+          await saveCompanyToFirestore(activeUserId, { photoUrl: publicUrl }, companyPlace.id);
+        }
+      } else if (target === 'prod') {
+        setNewProdImage(publicUrl);
+      } else if (target === 'regLogo') {
+        setRegLogoUrl(publicUrl);
+      } else if (target === 'regImage') {
+        setRegImageUrl(publicUrl);
+      }
+
+      setSuccessMsg('📸 Imagem carregada e salva no Firebase Storage com sucesso!');
+      setTimeout(() => setSuccessMsg(''), 3500);
+    } catch (err: any) {
+      console.error('Error uploading file to Firebase Storage:', err);
+      setErrorMsg('Falha ao enviar imagem para o Storage. Verifique a conexão.');
+    } finally {
+      setUploadingTarget(null);
     }
   };
 
@@ -375,7 +404,10 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
           ? regCustomCategory.trim()
           : CATEGORY_CONFIG[regCategory]?.name || 'Geral';
 
-      const newPlaceData = {
+      const activeUserId = currentUser?.uid || currentUser?.id || auth.currentUser?.uid || `owner-${Date.now()}`;
+
+      // Save to Cloud Firestore collection `companies`
+      const savedCompany = await saveCompanyToFirestore(activeUserId, {
         name: regName.trim(),
         category: regCategory,
         customCategory: regCategory === 'other' && regCustomCategory.trim() ? regCustomCategory.trim() : undefined,
@@ -390,40 +422,54 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
         phone: regPhone.trim() || undefined,
         instagram: regInstagram.trim() || undefined,
         hours: regHours.trim() || undefined,
+        photoUrl: finalImage,
+        logoUrl: finalLogo,
+        productsOrServices: initialProducts,
+      });
+
+      const createdObj: Place = {
+        id: savedCompany.id,
+        name: savedCompany.name,
+        category: regCategory,
+        customCategory: savedCompany.customCategory,
+        subCategory: savedCompany.subCategory || finalCategoryLabel,
+        description: savedCompany.description || '',
+        address: savedCompany.address,
+        neighborhood: savedCompany.neighborhood,
+        city: savedCompany.city,
+        lat: savedCompany.lat,
+        lng: savedCompany.lng,
+        whatsapp: savedCompany.whatsapp,
+        phone: savedCompany.phone,
+        instagram: savedCompany.instagram,
+        hours: savedCompany.hours,
         imageUrl: finalImage,
         logoUrl: finalLogo,
         isRegisteredCompany: true,
         priceRange: '$$' as const,
         tags: [regCategory, regSubCategory.trim(), regNeighborhood.trim(), 'Empresa Cadastrada', 'BairrosCity'],
-        ownerId: currentUser?.id || `owner-${Date.now()}`,
+        ownerId: activeUserId,
         ownerName: currentUser?.name || regName.trim(),
         ownerEmail: currentUser?.email || '',
         productsOrServices: initialProducts,
-      };
-
-      const docId = await createPlaceInFirestore(newPlaceData);
-
-      const createdObj: Place = {
-        ...newPlaceData,
-        id: docId,
         rating: 5.0,
         reviewsCount: 1,
         reviews: [],
-        createdAt: new Date().toISOString(),
+        createdAt: savedCompany.createdAt,
       };
 
-      // Upgrade user profile to role empresa if logged in
+      // Upgrade user profile to role company if logged in
       if (currentUser) {
         try {
           await updateUserProfile(currentUser.id, {
-            role: 'empresa',
+            role: 'company',
             companyName: regName.trim(),
             neighborhood: regNeighborhood,
           });
           if (onUserUpdated) {
             onUserUpdated({
               ...currentUser,
-              role: 'empresa',
+              role: 'company',
               companyName: regName.trim(),
             });
           }
@@ -443,16 +489,16 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
       try {
         localStorage.removeItem(COMPANY_DRAFT_KEY);
       } catch (e) {}
-      setSuccessMsg('🎉 Empresa publicada com sucesso! Ela já aparece no mapa com foto e nome para todos os moradores.');
-    } catch (err) {
+      setSuccessMsg('🎉 Empresa publicada e salva no Cloud Firestore! Já está visível no mapa.');
+    } catch (err: any) {
       console.error('Error publishing company:', err);
-      setErrorMsg('Erro ao publicar empresa no banco de dados. Verifique a conexão.');
+      setErrorMsg('Erro ao publicar empresa no banco de dados. ' + (err?.message || 'Verifique a conexão.'));
     } finally {
       setPublishing(false);
     }
   };
 
-  // Save changes to existing company
+  // Save changes to existing company - Requirement 5: Conecte o evento onClick ao Firestore usando setDoc com { merge: true }
   const handleSaveAll = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!companyPlace) return;
@@ -467,28 +513,52 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
           ? customCategory.trim()
           : CATEGORY_CONFIG[category]?.name || 'Geral';
 
-      const updates: Partial<Place> = {
+      const activeUserId = currentUser?.uid || currentUser?.id || auth.currentUser?.uid || companyPlace.ownerId || 'empresa_user';
+      const companyId = companyPlace.id || `comp-${activeUserId}`;
+
+      const companyData = {
+        id: companyId,
+        userId: activeUserId,
         name: name.trim(),
         category,
-        customCategory: category === 'other' && customCategory.trim() ? customCategory.trim() : undefined,
+        customCategory: category === 'other' && customCategory.trim() ? customCategory.trim() : null,
         subCategory: subCategory.trim() || finalCategoryLabel,
         address: address.trim(),
         neighborhood,
         city: city.trim(),
-        phone: phone.trim() || undefined,
-        whatsapp: whatsapp.trim() || undefined,
-        hours: hours.trim() || undefined,
+        lat: companyPlace.lat || -8.0645,
+        lng: companyPlace.lng || -34.9855,
+        phone: phone.trim() || '',
+        whatsapp: whatsapp.trim() || '',
+        hours: hours.trim() || '',
         description: description.trim(),
-        imageUrl: imageUrl.trim() || companyPlace.imageUrl,
-        logoUrl: logoUrl.trim() || undefined,
-        instagram: instagram.trim() || undefined,
-        website: website.trim() || undefined,
+        imageUrl: imageUrl.trim() || companyPlace.imageUrl || '',
+        photoUrl: imageUrl.trim() || companyPlace.imageUrl || '',
+        logoUrl: logoUrl.trim() || '',
+        instagram: instagram.trim() || '',
+        website: website.trim() || '',
         isPaused,
         priceRange,
         productsOrServices: products,
+        updatedAt: new Date().toISOString(),
       };
 
-      await updatePlaceInFirestore(companyPlace.id, updates);
+      // 1. Direct Firestore setDoc with merge: true on `companies` collection
+      await setDoc(doc(db, 'companies', companyId), companyData, { merge: true });
+      console.log(`[Firestore] Updated companies/${companyId} with merge: true`);
+
+      // 2. Direct Firestore setDoc with merge: true on `places` collection for map compatibility
+      const placeUpdates: Partial<Place> = {
+        ...companyData,
+        customCategory: companyData.customCategory || undefined,
+        phone: companyData.phone || undefined,
+        whatsapp: companyData.whatsapp || undefined,
+        hours: companyData.hours || undefined,
+        logoUrl: companyData.logoUrl || undefined,
+        instagram: companyData.instagram || undefined,
+        website: companyData.website || undefined,
+      };
+      await setDoc(doc(db, 'places', companyId), placeUpdates, { merge: true });
 
       if (currentUser && name.trim() !== currentUser.companyName) {
         await updateUserProfile(currentUser.id, { companyName: name.trim() });
@@ -496,15 +566,15 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
 
       const updatedObj: Place = {
         ...companyPlace,
-        ...updates,
+        ...placeUpdates,
       };
 
       onPlaceUpdated(updatedObj);
-      setSuccessMsg('✅ Dados e catálogo atualizados e salvos com sucesso!');
-      setTimeout(() => setSuccessMsg(''), 4000);
-    } catch (err) {
-      console.error('Error updating company place:', err);
-      setErrorMsg('Erro ao salvar dados da empresa. Tente novamente.');
+      setSuccessMsg('✅ Dados da empresa salvos no banco de dados com sucesso!');
+      setTimeout(() => setSuccessMsg(''), 4500);
+    } catch (err: any) {
+      console.error('Error saving company in Firestore:', err);
+      setErrorMsg('❌ Erro ao salvar dados no banco: ' + (err?.message || 'Tente novamente.'));
     } finally {
       setSaving(false);
     }
@@ -791,7 +861,11 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
                   </div>
 
                   <div className="flex items-center gap-3.5">
-                    {regLogoUrl ? (
+                    {uploadingTarget === 'regLogo' ? (
+                      <div className="w-16 h-16 rounded-full bg-slate-900 border-2 border-lime-400 flex items-center justify-center">
+                        <div className="w-5 h-5 border-2 border-lime-400 border-t-transparent rounded-full animate-spin" />
+                      </div>
+                    ) : regLogoUrl ? (
                       <div className="relative group shrink-0">
                         <img
                           src={regLogoUrl}
@@ -821,11 +895,16 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
+                          disabled={uploadingTarget === 'regLogo'}
                           onClick={() => regLogoFileInputRef.current?.click()}
-                          className="px-3.5 py-2 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-all shadow-sm active:scale-95"
+                          className="px-3.5 py-2 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-all shadow-sm active:scale-95 disabled:opacity-60"
                         >
-                          <Upload className="w-3.5 h-3.5" />
-                          <span>{regLogoUrl ? 'Trocar Foto' : 'Selecionar Foto'}</span>
+                          {uploadingTarget === 'regLogo' ? (
+                            <div className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <Upload className="w-3.5 h-3.5" />
+                          )}
+                          <span>{uploadingTarget === 'regLogo' ? 'Salvando...' : regLogoUrl ? 'Trocar Foto' : 'Selecionar Foto'}</span>
                         </button>
 
                         <button
@@ -868,7 +947,11 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
                   </div>
 
                   <div className="flex items-center gap-3.5">
-                    {regImageUrl ? (
+                    {uploadingTarget === 'regImage' ? (
+                      <div className="w-20 h-16 rounded-xl bg-slate-900 border-2 border-blue-400 flex items-center justify-center">
+                        <div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                      </div>
+                    ) : regImageUrl ? (
                       <div className="relative group shrink-0">
                         <img
                           src={regImageUrl}
@@ -898,11 +981,16 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
+                          disabled={uploadingTarget === 'regImage'}
                           onClick={() => regImageFileInputRef.current?.click()}
-                          className="px-3.5 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-all shadow-sm active:scale-95"
+                          className="px-3.5 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-all shadow-sm active:scale-95 disabled:opacity-60"
                         >
-                          <Upload className="w-3.5 h-3.5" />
-                          <span>{regImageUrl ? 'Trocar Capa' : 'Selecionar Capa'}</span>
+                          {uploadingTarget === 'regImage' ? (
+                            <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <Upload className="w-3.5 h-3.5" />
+                          )}
+                          <span>{uploadingTarget === 'regImage' ? 'Salvando...' : regImageUrl ? 'Trocar Capa' : 'Selecionar Capa'}</span>
                         </button>
 
                         <button
@@ -1704,7 +1792,11 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
                         Logomarca da Empresa (Aparece no pino do mapa)
                       </label>
                       <div className="flex items-center gap-3">
-                        {logoUrl ? (
+                        {uploadingTarget === 'logo' ? (
+                          <div className="w-14 h-14 rounded-full bg-slate-800 border-2 border-lime-400 flex items-center justify-center">
+                            <div className="w-5 h-5 border-2 border-lime-400 border-t-transparent rounded-full animate-spin" />
+                          </div>
+                        ) : logoUrl ? (
                           <img
                             src={logoUrl}
                             alt="Logo"
@@ -1719,8 +1811,9 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
                           <input
                             type="file"
                             accept="image/*"
+                            disabled={uploadingTarget === 'logo'}
                             onChange={(e) => handleFileUpload(e, 'logo')}
-                            className="text-xs text-slate-400 file:mr-2 file:py-1 file:px-2.5 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-slate-700 file:text-white hover:file:bg-slate-600 cursor-pointer"
+                            className="text-xs text-slate-400 file:mr-2 file:py-1 file:px-2.5 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-slate-700 file:text-white hover:file:bg-slate-600 cursor-pointer disabled:opacity-50"
                           />
                           <input
                             type="url"
@@ -1738,7 +1831,11 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
                         Foto da Fachada / Ambiente
                       </label>
                       <div className="flex items-center gap-3">
-                        {imageUrl ? (
+                        {uploadingTarget === 'image' ? (
+                          <div className="w-14 h-14 rounded-xl bg-slate-800 border-2 border-blue-400 flex items-center justify-center">
+                            <div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                          </div>
+                        ) : imageUrl ? (
                           <img
                             src={imageUrl}
                             alt="Fachada"
@@ -1753,8 +1850,9 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
                           <input
                             type="file"
                             accept="image/*"
+                            disabled={uploadingTarget === 'image'}
                             onChange={(e) => handleFileUpload(e, 'image')}
-                            className="text-xs text-slate-400 file:mr-2 file:py-1 file:px-2.5 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-slate-700 file:text-white hover:file:bg-slate-600 cursor-pointer"
+                            className="text-xs text-slate-400 file:mr-2 file:py-1 file:px-2.5 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-slate-700 file:text-white hover:file:bg-slate-600 cursor-pointer disabled:opacity-50"
                           />
                           <input
                             type="url"
@@ -1770,8 +1868,9 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
 
                   <button
                     type="submit"
+                    onClick={handleSaveAll}
                     disabled={saving}
-                    className="w-full py-3.5 rounded-2xl bg-lime-400 hover:bg-lime-300 text-slate-950 font-black text-sm tracking-wide shadow-xl shadow-lime-400/20 flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50"
+                    className="w-full py-3.5 rounded-2xl bg-lime-400 hover:bg-lime-300 text-slate-950 font-black text-sm tracking-wide shadow-xl shadow-lime-400/20 flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50 active:scale-[0.99]"
                   >
                     {saving ? (
                       <div className="w-5 h-5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />

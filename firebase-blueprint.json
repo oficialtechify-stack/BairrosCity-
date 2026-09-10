@@ -7,7 +7,11 @@
       "properties": {
         "id": {
           "type": "string",
-          "description": "ID do usuário no Firebase Auth ou gerado localmente"
+          "description": "ID do usuário"
+        },
+        "uid": {
+          "type": "string",
+          "description": "UID do usuário no Firebase Auth"
         },
         "name": {
           "type": "string",
@@ -20,8 +24,8 @@
         },
         "role": {
           "type": "string",
-          "enum": ["morador", "empresa"],
-          "description": "Papel do usuário"
+          "enum": ["company", "resident", "morador", "empresa"],
+          "description": "Papel do usuário (company ou resident)"
         },
         "neighborhood": {
           "type": "string",
@@ -44,7 +48,34 @@
           "description": "Data de criação em ISO format"
         }
       },
-      "required": ["id", "name", "email", "role", "neighborhood"]
+      "required": ["uid", "email", "role"]
+    },
+    "Company": {
+      "title": "Company",
+      "description": "Empresa cadastrada no Cloud Firestore",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "neighborhood": { "type": "string" },
+        "city": { "type": "string" },
+        "address": { "type": "string" },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "whatsapp": { "type": "string" },
+        "instagram": { "type": "string" },
+        "phone": { "type": "string" },
+        "hours": { "type": "string" },
+        "website": { "type": "string" },
+        "description": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "photoUrl": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "name", "category", "neighborhood", "city", "address", "lat", "lng"]
     },
     "Place": {
       "title": "Place",
@@ -95,6 +126,10 @@
     }
   },
   "firestore": {
+    "/companies/{companyId}": {
+      "schema": "Company",
+      "description": "Empresas cadastradas no Cloud Firestore"
+    },
     "/places/{placeId}": {
       "schema": "Place",
       "description": "Empresas e comércios locais cadastrados no mapa"
