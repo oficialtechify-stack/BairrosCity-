@@ -6,6 +6,7 @@ import { UserProfile } from '../types';
 interface LoginGateProps {
   onLoginSuccess: (user: UserProfile) => void;
   onOpenEmailAuth: () => void;
+  onContinueAsGuest?: () => void;
 }
 
 // Google Official Icon
@@ -30,7 +31,7 @@ const GoogleIcon: React.FC<{ className?: string }> = ({ className = 'w-5 h-5' })
   </svg>
 );
 
-export const LoginGate: React.FC<LoginGateProps> = ({ onLoginSuccess, onOpenEmailAuth }) => {
+export const LoginGate: React.FC<LoginGateProps> = ({ onLoginSuccess, onOpenEmailAuth, onContinueAsGuest }) => {
   const [selectedRole, setSelectedRole] = useState<'morador' | 'empresa'>('morador');
   const [loadingGoogle, setLoadingGoogle] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -142,6 +143,16 @@ export const LoginGate: React.FC<LoginGateProps> = ({ onLoginSuccess, onOpenEmai
             <span>Entrar ou Criar com E-mail e Senha</span>
             <ArrowRight className="w-3.5 h-3.5 text-lime-400" />
           </button>
+
+          {onContinueAsGuest && (
+            <button
+              type="button"
+              onClick={onContinueAsGuest}
+              className="w-full py-2.5 px-4 text-center text-xs font-semibold text-slate-400 hover:text-lime-400 transition-colors cursor-pointer"
+            >
+              Explorar mapa como visitante sem login →
+            </button>
+          )}
         </div>
 
         {/* Security badge footer */}

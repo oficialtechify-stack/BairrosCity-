@@ -315,21 +315,20 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
     setErrorMsg('');
     try {
       const activeUserId = currentUser?.uid || currentUser?.id || auth.currentUser?.uid || (companyPlace?.ownerId) || 'company_user';
-      const fileType = (target === 'logo' || target === 'regLogo') ? 'logo' : 'photo';
       
-      const publicUrl = await uploadCompanyImage(activeUserId, file, fileType);
+      const publicUrl = await uploadCompanyImage(activeUserId, file);
       
       if (target === 'logo') {
         setLogoUrl(publicUrl);
         if (companyPlace) {
-          // Immediately sync logoUrl to company document in Firestore
+          // Explicitly sync logoUrl to company document in Firestore
           await saveCompanyToFirestore(activeUserId, { logoUrl: publicUrl }, companyPlace.id);
         }
       } else if (target === 'image') {
         setImageUrl(publicUrl);
         if (companyPlace) {
-          // Immediately sync photoUrl to company document in Firestore
-          await saveCompanyToFirestore(activeUserId, { photoUrl: publicUrl }, companyPlace.id);
+          // Explicitly sync photoUrl to company document in Firestore
+          await saveCompanyToFirestore(activeUserId, { photoUrl: publicUrl, imageUrl: publicUrl }, companyPlace.id);
         }
       } else if (target === 'prod') {
         setNewProdImage(publicUrl);
@@ -343,7 +342,9 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
       setTimeout(() => setSuccessMsg(''), 3500);
     } catch (err: any) {
       console.error('Error uploading file to Firebase Storage:', err);
-      setErrorMsg('Falha ao enviar imagem para o Storage. Verifique a conexão.');
+      const msg = err?.message || 'Falha ao enviar imagem para o Firebase Storage.';
+      setErrorMsg(`Erro no Upload: ${msg}`);
+      alert(`Erro no Upload (Firebase Storage):\n${msg}\n\nVerifique se as regras do Firebase Storage estão ativas no console.`);
     } finally {
       setUploadingTarget(null);
     }
@@ -492,7 +493,9 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
       setSuccessMsg('🎉 Empresa publicada e salva no Cloud Firestore! Já está visível no mapa.');
     } catch (err: any) {
       console.error('Error publishing company:', err);
-      setErrorMsg('Erro ao publicar empresa no banco de dados. ' + (err?.message || 'Verifique a conexão.'));
+      const msg = err?.message || 'Verifique a conexão e as regras de segurança do Firestore.';
+      setErrorMsg('Erro ao publicar empresa no banco de dados: ' + msg);
+      alert(`Erro ao salvar empresa no Firestore:\n${msg}\n\nVerifique se as Regras do Firestore permitem gravação.`);
     } finally {
       setPublishing(false);
     }
@@ -574,7 +577,9 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
       setTimeout(() => setSuccessMsg(''), 4500);
     } catch (err: any) {
       console.error('Error saving company in Firestore:', err);
-      setErrorMsg('❌ Erro ao salvar dados no banco: ' + (err?.message || 'Tente novamente.'));
+      const msg = err?.message || 'Verifique sua conexão e as regras de segurança do Firestore.';
+      setErrorMsg('❌ Erro ao salvar dados no banco: ' + msg);
+      alert(`Erro ao salvar dados no Firestore:\n${msg}\n\nVerifique se as Regras do Firestore permitem gravação.`);
     } finally {
       setSaving(false);
     }

@@ -112,10 +112,12 @@ export default function App() {
   const [filterSavedOnly, setFilterSavedOnly] = useState<boolean>(false);
   const [mapCenterCoord, setMapCenterCoord] = useState<{ lat: number; lng: number; zoom?: number } | null>(null);
 
-  // Subscribe directly to Firebase Firestore `companies` collection (Requirement 3: RENDERIZAÇÃO NO MAPA)
+  // Subscribe directly to Firebase Firestore `companies` collection (Item 2: EXIBIR TODAS AS EMPRESAS NO MAPA)
   useEffect(() => {
-    const unsubscribeCompanies = subscribeCompanies((companiesList) => {
-      if (companiesList && companiesList.length > 0) {
+    setLoadingPlaces(true);
+    const unsubscribeCompanies = subscribeCompanies(
+      (companiesList) => {
+        console.log(`[Firestore] Recebidas ${companiesList.length} empresas da coleção 'companies'.`);
         const placesFromCompanies: Place[] = companiesList.map((c) => ({
           id: c.id,
           name: c.name,
@@ -133,7 +135,7 @@ export default function App() {
           instagram: c.instagram,
           website: c.website,
           hours: c.hours,
-          imageUrl: c.photoUrl || c.logoUrl || '',
+          imageUrl: c.photoUrl || c.logoUrl || c.imageUrl || '',
           logoUrl: c.logoUrl || c.photoUrl || '',
           isRegisteredCompany: true,
           priceRange: (c.priceRange as any) || '$$',
@@ -148,16 +150,26 @@ export default function App() {
           createdAt: c.createdAt,
           isPaused: Boolean(c.isPaused),
         }));
-        setPlaces(placesFromCompanies);
-        setLoadingPlaces(false);
-      } else {
-        // Fallback to places collection
+
+        if (placesFromCompanies.length > 0) {
+          setPlaces(placesFromCompanies);
+          setLoadingPlaces(false);
+        } else {
+          // Fallback to places collection if companies collection is empty
+          subscribePlaces((firestorePlaces) => {
+            setPlaces(firestorePlaces);
+            setLoadingPlaces(false);
+          });
+        }
+      },
+      (err) => {
+        console.error('[Firestore] Erro ao carregar empresas:', err);
         subscribePlaces((firestorePlaces) => {
           setPlaces(firestorePlaces);
           setLoadingPlaces(false);
         });
       }
-    });
+    );
 
     return () => unsubscribeCompanies();
   }, []);
@@ -450,6 +462,20 @@ export default function App() {
             setTimeout(() => setGpsToast(null), 3000);
           }}
           onOpenEmailAuth={() => setIsAuthModalOpen(true)}
+          onContinueAsGuest={() => {
+            const guestUser: UserProfile = {
+              id: 'visitante_' + Date.now().toString(36),
+              name: 'Visitante do Bairro',
+              email: '',
+              role: 'morador',
+              neighborhood: 'Curado IV',
+              city: 'Recife',
+              createdAt: new Date().toISOString(),
+            };
+            setCurrentUser(guestUser);
+            setGpsToast('Explorando como visitante. Todas as empresas cadastradas estão no mapa!');
+            setTimeout(() => setGpsToast(null), 4000);
+          }}
         />
       )}
 

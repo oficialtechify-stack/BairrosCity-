@@ -182,9 +182,11 @@ export interface UserProfile {
   email: string;
   role: 'morador' | 'empresa' | 'company' | 'resident';
   neighborhood: string;
+  city?: string;
   companyName?: string;
   phone?: string;
   photoURL?: string;
+  avatarUrl?: string;
   createdAt: string;
   companyDetails?: CompanyDetails;
   companyPlaceId?: string;
