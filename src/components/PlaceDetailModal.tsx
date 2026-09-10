@@ -166,9 +166,22 @@ export const PlaceDetailModal: React.FC<PlaceDetailModalProps> = ({
               )}
             </div>
 
-            <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight drop-shadow-sm">
-              {place.name}
-            </h2>
+            <div className="flex items-center gap-3">
+              {place.logoUrl && (
+                <img
+                  src={place.logoUrl}
+                  alt={place.name}
+                  className="w-12 h-12 sm:w-14 sm:h-14 rounded-full object-cover border-2 border-white shadow-md shrink-0 bg-white"
+                  referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+              )}
+              <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight drop-shadow-sm">
+                {place.name}
+              </h2>
+            </div>
           </div>
         </div>
 

@@ -13,7 +13,10 @@ import {
   Sparkles,
   Ticket,
   Image as ImageIcon,
-  LogIn
+  LogIn,
+  CheckCheck,
+  Compass,
+  Upload
 } from 'lucide-react';
 import { Place, CategoryType, UserProfile } from '../types';
 import { CATEGORY_CONFIG, NEIGHBORHOODS } from '../data/initialPlaces';
@@ -59,6 +62,18 @@ const GoogleIcon: React.FC<{ className?: string }> = ({ className = 'w-5 h-5' })
   </svg>
 );
 
+const EVENT_DRAFT_KEY = 'bairromap_event_reg_draft_v1';
+
+const loadEventDraft = () => {
+  try {
+    const saved = localStorage.getItem(EVENT_DRAFT_KEY);
+    if (saved) return JSON.parse(saved);
+  } catch (e) {
+    console.warn(e);
+  }
+  return null;
+};
+
 export const RegisterModal: React.FC<RegisterModalProps> = ({
   isOpen,
   onClose,
@@ -70,29 +85,129 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
   onOpenAuthModal,
   onOpenCompanyManager,
 }) => {
-  const [name, setName] = useState('');
-  const [subCategory, setSubCategory] = useState('Feira Gastronômica & Cultural');
-  const [description, setDescription] = useState('');
-  const [address, setAddress] = useState('');
-  const [neighborhood, setNeighborhood] = useState(currentUser?.neighborhood || 'Curado IV');
-  const [city, setCity] = useState('Recife');
-  const [whatsapp, setWhatsapp] = useState(currentUser?.phone || '');
-  const [phone, setPhone] = useState('');
-  const [imageUrl, setImageUrl] = useState(PRESET_EVENT_IMAGES[0]);
+  const initialDraft = loadEventDraft();
+  const [name, setName] = useState(initialDraft?.name ?? '');
+  const [subCategory, setSubCategory] = useState(initialDraft?.subCategory ?? 'Feira Gastronômica & Cultural');
+  const [description, setDescription] = useState(initialDraft?.description ?? '');
+  const [address, setAddress] = useState(initialDraft?.address ?? '');
+  const [neighborhood, setNeighborhood] = useState(initialDraft?.neighborhood ?? (currentUser?.neighborhood || 'Curado IV'));
+  const [city, setCity] = useState(initialDraft?.city ?? 'Recife');
+  const [whatsapp, setWhatsapp] = useState(initialDraft?.whatsapp ?? (currentUser?.phone || ''));
+  const [phone, setPhone] = useState(initialDraft?.phone ?? '');
+  const [imageUrl, setImageUrl] = useState(initialDraft?.imageUrl ?? PRESET_EVENT_IMAGES[0]);
 
   // Event specific fields
-  const [eventDate, setEventDate] = useState('2026-09-12');
-  const [eventEndDate, setEventEndDate] = useState('2026-09-13');
-  const [eventTime, setEventTime] = useState('17:00 às 23:00');
-  const [isFree, setIsFree] = useState(true);
-  const [ticketInfo, setTicketInfo] = useState('');
+  const [eventDate, setEventDate] = useState(initialDraft?.eventDate ?? '2026-09-12');
+  const [eventEndDate, setEventEndDate] = useState(initialDraft?.eventEndDate ?? '2026-09-13');
+  const [eventTime, setEventTime] = useState(initialDraft?.eventTime ?? '17:00 às 23:00');
+  const [isFree, setIsFree] = useState(initialDraft?.isFree ?? true);
+  const [ticketInfo, setTicketInfo] = useState(initialDraft?.ticketInfo ?? '');
 
   // Map coordinates
-  const [lat, setLat] = useState<number>(-8.0645);
-  const [lng, setLng] = useState<number>(-34.9855);
+  const [lat, setLat] = useState<number>(initialDraft?.lat ?? -8.0645);
+  const [lng, setLng] = useState<number>(initialDraft?.lng ?? -34.9855);
+  const [hasPickedCoord, setHasPickedCoord] = useState<boolean>(Boolean(initialDraft?.hasPickedCoord));
 
   const [error, setError] = useState('');
   const [loadingGoogle, setLoadingGoogle] = useState(false);
+
+  // Auto-save event form draft
+  useEffect(() => {
+    try {
+      const draft = {
+        name,
+        subCategory,
+        description,
+        address,
+        neighborhood,
+        city,
+        whatsapp,
+        phone,
+        imageUrl: imageUrl.length < 300000 ? imageUrl : '',
+        eventDate,
+        eventEndDate,
+        eventTime,
+        isFree,
+        ticketInfo,
+        lat,
+        lng,
+        hasPickedCoord,
+      };
+      localStorage.setItem(EVENT_DRAFT_KEY, JSON.stringify(draft));
+    } catch (e) {}
+  }, [
+    name,
+    subCategory,
+    description,
+    address,
+    neighborhood,
+    city,
+    whatsapp,
+    phone,
+    imageUrl,
+    eventDate,
+    eventEndDate,
+    eventTime,
+    isFree,
+    ticketInfo,
+    lat,
+    lng,
+    hasPickedCoord,
+  ]);
+
+  const handleClearDraft = () => {
+    if (window.confirm('Deseja limpar todos os campos deste evento?')) {
+      try {
+        localStorage.removeItem(EVENT_DRAFT_KEY);
+      } catch (e) {}
+      setName('');
+      setSubCategory('Feira Gastronômica & Cultural');
+      setDescription('');
+      setAddress('');
+      setNeighborhood(currentUser?.neighborhood || 'Curado IV');
+      setCity('Recife');
+      setWhatsapp(currentUser?.phone || '');
+      setPhone('');
+      setImageUrl(PRESET_EVENT_IMAGES[0]);
+      setEventDate('2026-09-12');
+      setEventEndDate('2026-09-13');
+      setEventTime('17:00 às 23:00');
+      setIsFree(true);
+      setTicketInfo('');
+      setLat(-8.0645);
+      setLng(-34.9855);
+      setHasPickedCoord(false);
+    }
+  };
+
+  const handleStartPickLocation = () => {
+    try {
+      const draft = {
+        name,
+        subCategory,
+        description,
+        address,
+        neighborhood,
+        city,
+        whatsapp,
+        phone,
+        imageUrl: imageUrl.length < 300000 ? imageUrl : '',
+        eventDate,
+        eventEndDate,
+        eventTime,
+        isFree,
+        ticketInfo,
+        lat,
+        lng,
+        hasPickedCoord,
+      };
+      localStorage.setItem(EVENT_DRAFT_KEY, JSON.stringify(draft));
+    } catch (e) {}
+    onClose();
+    if (onStartPickingLocation) {
+      onStartPickingLocation();
+    }
+  };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -111,6 +226,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
     if (pickedCoord) {
       setLat(pickedCoord.lat);
       setLng(pickedCoord.lng);
+      setHasPickedCoord(true);
     }
   }, [pickedCoord]);
 
@@ -139,6 +255,10 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
       setError('Por favor, informe o local ou endereço do evento.');
       return;
     }
+
+    try {
+      localStorage.removeItem(EVENT_DRAFT_KEY);
+    } catch (e) {}
 
     onSavePlace({
       name: name.trim(),
@@ -177,37 +297,52 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
   return (
     <div
       id="register-modal-backdrop"
-      className="fixed inset-0 z-[1250] bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in"
+      className="fixed inset-0 z-[1250] bg-black/85 backdrop-blur-md flex items-center justify-center p-0 sm:p-4 overflow-y-auto animate-in fade-in"
       onClick={onClose}
     >
       <div
         id="register-modal-content"
-        className="relative w-full max-w-2xl bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl overflow-hidden my-auto max-h-[92vh] flex flex-col text-slate-100"
+        className="relative w-full h-full sm:h-auto sm:max-h-[92vh] sm:max-w-2xl bg-slate-900 border-0 sm:border border-slate-700/80 sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col text-slate-100"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900">
+        <div className="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between bg-slate-900 shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-2xl bg-purple-500/20 border border-purple-500/40 text-purple-400 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-2xl bg-purple-500/20 border border-purple-500/40 text-purple-400 flex items-center justify-center shrink-0">
               <Calendar className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base sm:text-lg font-black text-white tracking-tight">
-                Cadastrar Evento ou Lazer no Mapa
-              </h2>
-              <p className="text-[11px] text-slate-400">
-                Divulgue programações culturais, feiras comunitárias e lazer no seu bairro
+              <div className="flex items-center gap-2">
+                <h2 className="text-base sm:text-lg font-black text-white tracking-tight">
+                  Cadastrar Evento ou Lazer
+                </h2>
+                <span className="hidden sm:inline-block px-2 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/30 text-[10px] font-bold text-purple-400">
+                  Rascunho Pré-Salvo
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 line-clamp-1">
+                Divulgue programações culturais, feiras comunitárias e lazer no bairro
               </p>
             </div>
           </div>
-          <button
-            id="close-register-modal-btn"
-            type="button"
-            onClick={onClose}
-            className="p-2 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleClearDraft}
+              title="Limpar formulário"
+              className="text-[11px] text-slate-400 hover:text-rose-400 px-2.5 py-1.5 rounded-lg hover:bg-slate-800 transition-colors hidden sm:block"
+            >
+              Limpar
+            </button>
+            <button
+              id="close-register-modal-btn"
+              type="button"
+              onClick={onClose}
+              className="p-2 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* CONDITION 1: NOT LOGGED IN */}
@@ -503,10 +638,23 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
               </div>
 
               {/* Imagem / Cartaz Presets */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-300">
-                  Cartaz ou Foto do Evento
-                </label>
+              {/* Imagem / Cartaz Presets & Upload */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-slate-300">
+                    Cartaz ou Foto do Evento
+                  </label>
+                  <label className="text-[11px] text-purple-400 hover:text-purple-300 font-semibold cursor-pointer flex items-center gap-1">
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Enviar foto do seu aparelho</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
                 <div className="grid grid-cols-4 gap-2">
                   {PRESET_EVENT_IMAGES.map((img, idx) => (
                     <button
@@ -514,7 +662,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                       type="button"
                       onClick={() => setImageUrl(img)}
                       className={`relative h-14 rounded-xl overflow-hidden border-2 transition-all cursor-pointer ${
-                        imageUrl === img ? 'border-purple-400 scale-[1.02]' : 'border-slate-700 hover:border-slate-500'
+                        imageUrl === img ? 'border-purple-400 scale-[1.02] ring-2 ring-purple-500/30' : 'border-slate-700 hover:border-slate-500'
                       }`}
                     >
                       <img src={img} alt="Preset" className="w-full h-full object-cover" />
@@ -523,25 +671,56 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                 </div>
               </div>
 
-              {/* Localização no mapa */}
-              <div className="p-3.5 rounded-2xl bg-slate-800/50 border border-slate-700/60 flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-white">
-                    <MapPin className="w-4 h-4 text-purple-400" />
-                    <span>Ponto Exato no Mapa do Bairro</span>
+              {/* Localização no mapa com rascunho seguro */}
+              <div className={`p-4 rounded-2xl border transition-all ${
+                hasPickedCoord
+                  ? 'bg-purple-950/40 border-purple-500/60'
+                  : 'bg-slate-800/60 border-slate-700/80'
+              }`}>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                      hasPickedCoord
+                        ? 'bg-purple-500/20 text-purple-400 border border-purple-500/40'
+                        : 'bg-slate-700/50 text-slate-300 border border-slate-600/40'
+                    }`}>
+                      {hasPickedCoord ? (
+                        <CheckCheck className="w-5 h-5" />
+                      ) : (
+                        <Compass className="w-5 h-5" />
+                      )}
+                    </div>
+
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-white">
+                          {hasPickedCoord ? 'Ponto Marcado no Mapa' : 'Posicionamento do Evento no Mapa'}
+                        </span>
+                        {hasPickedCoord && (
+                          <span className="px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 text-[10px] font-black uppercase">
+                            ✓ Confirmado
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-300 mt-0.5">
+                        {hasPickedCoord ? (
+                          <span>Coordenadas salvas no rascunho: <strong>{lat.toFixed(5)}, {lng.toFixed(5)}</strong></span>
+                        ) : (
+                          <span>Clique para marcar no mapa. Todos os dados preenchidos <strong>permanecem salvos</strong>.</span>
+                        )}
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    Coordenadas: {lat.toFixed(4)}, {lng.toFixed(4)}
-                  </p>
+
+                  <button
+                    type="button"
+                    onClick={handleStartPickLocation}
+                    className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 active:scale-95 text-white font-black text-xs flex items-center justify-center gap-2 cursor-pointer transition-all shadow-md shadow-purple-600/20 shrink-0"
+                  >
+                    <MousePointerClick className="w-4 h-4" />
+                    <span>{hasPickedCoord ? 'Alterar Ponto no Mapa' : 'Escolher no Mapa'}</span>
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={onStartPickingLocation}
-                  className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-sm"
-                >
-                  <MousePointerClick className="w-3.5 h-3.5" />
-                  <span>Escolher no Mapa</span>
-                </button>
               </div>
 
               {/* Submit Button */}

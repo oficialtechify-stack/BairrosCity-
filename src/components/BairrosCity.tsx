@@ -149,7 +149,7 @@ export const BairrosCity: React.FC<BairrosCityProps> = ({
               type="button"
               onClick={onBackToHome}
               className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
-              title="Voltar para a Página Inicial"
+              title="Voltar para o Mapa"
             >
               <ArrowLeft className="w-4 h-4" />
             </button>

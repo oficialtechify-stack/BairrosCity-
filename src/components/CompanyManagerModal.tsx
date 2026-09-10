@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   Building2,
@@ -25,7 +25,10 @@ import {
   ExternalLink,
   ShieldCheck,
   Tag,
-  Check
+  Check,
+  RotateCcw,
+  Image as ImageIcon,
+  CheckCheck
 } from 'lucide-react';
 import { Place, UserProfile, CategoryType, ProductItem } from '../types';
 import { CATEGORY_CONFIG, NEIGHBORHOODS } from '../data/initialPlaces';
@@ -35,6 +38,18 @@ import {
   deletePlaceFromFirestore 
 } from '../services/placesService';
 import { updateUserProfile, loginWithGoogle } from '../services/authService';
+
+const COMPANY_DRAFT_KEY = 'bairromap_company_reg_draft_v2';
+
+const loadCompanyDraft = () => {
+  try {
+    const saved = localStorage.getItem(COMPANY_DRAFT_KEY);
+    if (saved) return JSON.parse(saved);
+  } catch (e) {
+    console.warn('Failed to parse company draft', e);
+  }
+  return null;
+};
 
 interface CompanyManagerModalProps {
   isOpen: boolean;
@@ -75,6 +90,7 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
   // Form states for existing company
   const [name, setName] = useState(companyPlace?.name || currentUser?.companyName || '');
   const [category, setCategory] = useState<CategoryType>(companyPlace?.category || 'restaurant');
+  const [customCategory, setCustomCategory] = useState(companyPlace?.customCategory || '');
   const [subCategory, setSubCategory] = useState(companyPlace?.subCategory || 'Geral');
   const [address, setAddress] = useState(companyPlace?.address || '');
   const [neighborhood, setNeighborhood] = useState(companyPlace?.neighborhood || currentUser?.neighborhood || 'Curado IV');
@@ -97,41 +113,172 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
   const [newProdDesc, setNewProdDesc] = useState('');
   const [newProdImage, setNewProdImage] = useState('');
 
-  // States for REGISTRATION when no place exists yet
-  const [regName, setRegName] = useState(currentUser?.companyName || currentUser?.name || '');
-  const [regCategory, setRegCategory] = useState<CategoryType>('restaurant');
-  const [regSubCategory, setRegSubCategory] = useState('Alimentação & Lanches');
-  const [regAddress, setRegAddress] = useState('');
-  const [regNeighborhood, setRegNeighborhood] = useState(currentUser?.neighborhood || 'Curado IV');
-  const [regCity, setRegCity] = useState('Recife');
-  const [regWhatsapp, setRegWhatsapp] = useState(currentUser?.phone || '');
-  const [regPhone, setRegPhone] = useState('');
-  const [regInstagram, setRegInstagram] = useState('');
-  const [regHours, setRegHours] = useState('Seg a Sáb: 08:00 às 20:00');
-  const [regDescription, setRegDescription] = useState('Atendimento com excelência e qualidade no bairro!');
-  const [regLogoUrl, setRegLogoUrl] = useState('');
-  const [regImageUrl, setRegImageUrl] = useState('');
-  const [regLat, setRegLat] = useState<number>(-8.0645);
-  const [regLng, setRegLng] = useState<number>(-34.9855);
-  // Initial product in registration
-  const [regFirstProdName, setRegFirstProdName] = useState('');
-  const [regFirstProdPrice, setRegFirstProdPrice] = useState('');
+  // Pre-saved registration draft initialization (so data is never lost when user picks a location on the map!)
+  const initialDraft = loadCompanyDraft();
+  const [regName, setRegName] = useState(initialDraft?.regName ?? (currentUser?.companyName || currentUser?.name || ''));
+  const [regCategory, setRegCategory] = useState<CategoryType>(initialDraft?.regCategory ?? 'restaurant');
+  const [regCustomCategory, setRegCustomCategory] = useState(initialDraft?.regCustomCategory ?? '');
+  const [regSubCategory, setRegSubCategory] = useState(initialDraft?.regSubCategory ?? 'Alimentação & Lanches');
+  const [regAddress, setRegAddress] = useState(initialDraft?.regAddress ?? '');
+  const [regNeighborhood, setRegNeighborhood] = useState(initialDraft?.regNeighborhood ?? (currentUser?.neighborhood || 'Curado IV'));
+  const [regCity, setRegCity] = useState(initialDraft?.regCity ?? 'Recife');
+  const [regWhatsapp, setRegWhatsapp] = useState(initialDraft?.regWhatsapp ?? (currentUser?.phone || ''));
+  const [regPhone, setRegPhone] = useState(initialDraft?.regPhone ?? '');
+  const [regInstagram, setRegInstagram] = useState(initialDraft?.regInstagram ?? '');
+  const [regHours, setRegHours] = useState(initialDraft?.regHours ?? 'Seg a Sáb: 08:00 às 20:00');
+  const [regDescription, setRegDescription] = useState(initialDraft?.regDescription ?? 'Atendimento com excelência e qualidade no bairro!');
+  const [regLogoUrl, setRegLogoUrl] = useState(initialDraft?.regLogoUrl ?? '');
+  const [regImageUrl, setRegImageUrl] = useState(initialDraft?.regImageUrl ?? '');
+  const [regLat, setRegLat] = useState<number>(initialDraft?.regLat ?? -8.0645);
+  const [regLng, setRegLng] = useState<number>(initialDraft?.regLng ?? -34.9855);
+  const [hasPickedCoord, setHasPickedCoord] = useState<boolean>(Boolean(initialDraft?.hasPickedCoord));
+  const [regFirstProdName, setRegFirstProdName] = useState(initialDraft?.regFirstProdName ?? '');
+  const [regFirstProdPrice, setRegFirstProdPrice] = useState(initialDraft?.regFirstProdPrice ?? '');
+  const [isUrlInputOpenLogo, setIsUrlInputOpenLogo] = useState(false);
+  const [isUrlInputOpenImage, setIsUrlInputOpenImage] = useState(false);
 
-  // Handle picked coordinates from parent map
+  // Hidden file input refs for professional click-to-upload experience
+  const regLogoFileInputRef = useRef<HTMLInputElement | null>(null);
+  const regImageFileInputRef = useRef<HTMLInputElement | null>(null);
+  const logoFileInputRef = useRef<HTMLInputElement | null>(null);
+  const imageFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Auto-save draft to localStorage whenever any registration field changes
+  useEffect(() => {
+    if (!companyPlace) {
+      try {
+        const draftData = {
+          regName,
+          regCategory,
+          regCustomCategory,
+          regSubCategory,
+          regAddress,
+          regNeighborhood,
+          regCity,
+          regWhatsapp,
+          regPhone,
+          regInstagram,
+          regHours,
+          regDescription,
+          // Only store URL or lightweight base64 to avoid exceeding localStorage quota
+          regLogoUrl: regLogoUrl.length < 300000 ? regLogoUrl : '',
+          regImageUrl: regImageUrl.length < 300000 ? regImageUrl : '',
+          regLat,
+          regLng,
+          hasPickedCoord,
+          regFirstProdName,
+          regFirstProdPrice,
+          lastSavedAt: Date.now(),
+        };
+        localStorage.setItem(COMPANY_DRAFT_KEY, JSON.stringify(draftData));
+      } catch (err) {
+        console.warn('Unable to persist draft to localStorage:', err);
+      }
+    }
+  }, [
+    companyPlace,
+    regName,
+    regCategory,
+    regCustomCategory,
+    regSubCategory,
+    regAddress,
+    regNeighborhood,
+    regCity,
+    regWhatsapp,
+    regPhone,
+    regInstagram,
+    regHours,
+    regDescription,
+    regLogoUrl,
+    regImageUrl,
+    regLat,
+    regLng,
+    hasPickedCoord,
+    regFirstProdName,
+    regFirstProdPrice,
+  ]);
+
+  // Handle picked coordinates from parent map and persist them
   useEffect(() => {
     if (pickedCoord) {
       setRegLat(pickedCoord.lat);
       setRegLng(pickedCoord.lng);
-      setSuccessMsg('Localização atualizada com sucesso pelo mapa!');
-      setTimeout(() => setSuccessMsg(''), 3500);
+      setHasPickedCoord(true);
+      setSuccessMsg(`Ponto no mapa definido com sucesso! (${pickedCoord.lat.toFixed(4)}, ${pickedCoord.lng.toFixed(4)})`);
+      setTimeout(() => setSuccessMsg(''), 4000);
     }
   }, [pickedCoord]);
+
+  // Clean all form fields if user chooses to start over
+  const handleClearDraft = () => {
+    if (window.confirm('Tem certeza que deseja limpar todos os campos preenchidos e reiniciar o formulário?')) {
+      try {
+        localStorage.removeItem(COMPANY_DRAFT_KEY);
+      } catch (e) {}
+      setRegName('');
+      setRegCategory('restaurant');
+      setRegCustomCategory('');
+      setRegSubCategory('Alimentação & Lanches');
+      setRegAddress('');
+      setRegNeighborhood(currentUser?.neighborhood || 'Curado IV');
+      setRegCity('Recife');
+      setRegWhatsapp(currentUser?.phone || '');
+      setRegPhone('');
+      setRegInstagram('');
+      setRegHours('Seg a Sáb: 08:00 às 20:00');
+      setRegDescription('Atendimento com excelência e qualidade no bairro!');
+      setRegLogoUrl('');
+      setRegImageUrl('');
+      setRegLat(-8.0645);
+      setRegLng(-34.9855);
+      setHasPickedCoord(false);
+      setRegFirstProdName('');
+      setRegFirstProdPrice('');
+      setSuccessMsg('Formulário limpo com sucesso.');
+      setTimeout(() => setSuccessMsg(''), 2500);
+    }
+  };
+
+  // Safe handler to pick location on map without losing form data
+  const handleStartPickLocationOnMap = () => {
+    // Explicitly guarantee saving state right before unmounting/closing
+    try {
+      const draftData = {
+        regName,
+        regCategory,
+        regCustomCategory,
+        regSubCategory,
+        regAddress,
+        regNeighborhood,
+        regCity,
+        regWhatsapp,
+        regPhone,
+        regInstagram,
+        regHours,
+        regDescription,
+        regLogoUrl: regLogoUrl.length < 300000 ? regLogoUrl : '',
+        regImageUrl: regImageUrl.length < 300000 ? regImageUrl : '',
+        regLat,
+        regLng,
+        hasPickedCoord,
+        regFirstProdName,
+        regFirstProdPrice,
+        lastSavedAt: Date.now(),
+      };
+      localStorage.setItem(COMPANY_DRAFT_KEY, JSON.stringify(draftData));
+    } catch (e) {}
+    onClose();
+    if (onStartPickingLocation) {
+      onStartPickingLocation();
+    }
+  };
 
   // Sync state when companyPlace updates
   useEffect(() => {
     if (companyPlace) {
       setName(companyPlace.name);
       setCategory(companyPlace.category);
+      setCustomCategory(companyPlace.customCategory || '');
       setSubCategory(companyPlace.subCategory);
       setAddress(companyPlace.address);
       setNeighborhood(companyPlace.neighborhood);
@@ -223,10 +370,16 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
         });
       }
 
+      const finalCategoryLabel =
+        regCategory === 'other' && regCustomCategory.trim()
+          ? regCustomCategory.trim()
+          : CATEGORY_CONFIG[regCategory]?.name || 'Geral';
+
       const newPlaceData = {
         name: regName.trim(),
         category: regCategory,
-        subCategory: regSubCategory.trim() || CATEGORY_CONFIG[regCategory]?.name || 'Geral',
+        customCategory: regCategory === 'other' && regCustomCategory.trim() ? regCustomCategory.trim() : undefined,
+        subCategory: regSubCategory.trim() || finalCategoryLabel,
         description: regDescription.trim() || 'Empresa verificada no bairro com atendimento de excelência.',
         address: regAddress.trim(),
         neighborhood: regNeighborhood.trim() || 'Curado IV',
@@ -287,6 +440,9 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
 
       setProducts(initialProducts);
       setActiveTab('products');
+      try {
+        localStorage.removeItem(COMPANY_DRAFT_KEY);
+      } catch (e) {}
       setSuccessMsg('🎉 Empresa publicada com sucesso! Ela já aparece no mapa com foto e nome para todos os moradores.');
     } catch (err) {
       console.error('Error publishing company:', err);
@@ -306,10 +462,16 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
     setErrorMsg('');
 
     try {
+      const finalCategoryLabel =
+        category === 'other' && customCategory.trim()
+          ? customCategory.trim()
+          : CATEGORY_CONFIG[category]?.name || 'Geral';
+
       const updates: Partial<Place> = {
         name: name.trim(),
         category,
-        subCategory: subCategory.trim() || CATEGORY_CONFIG[category]?.name || 'Geral',
+        customCategory: category === 'other' && customCategory.trim() ? customCategory.trim() : undefined,
+        subCategory: subCategory.trim() || finalCategoryLabel,
         address: address.trim(),
         neighborhood,
         city: city.trim(),
@@ -420,57 +582,72 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
   return (
     <div
       id="company-manager-backdrop"
-      className="fixed inset-0 z-[1300] bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in"
+      className="fixed inset-0 z-[1300] bg-black/85 backdrop-blur-md flex items-center justify-center p-0 sm:p-4 overflow-y-auto animate-in fade-in"
       onClick={onClose}
     >
       <div
         id="company-manager-content"
-        className="relative w-full max-w-3xl bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl overflow-hidden my-auto max-h-[92vh] flex flex-col text-slate-100"
+        className="relative w-full h-full sm:h-auto sm:max-h-[92vh] sm:max-w-3xl bg-slate-900 border-0 sm:border border-slate-700/80 sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col text-slate-100"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top Header */}
-        <div className="p-5 sm:p-6 border-b border-slate-800 bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 flex items-center justify-between">
+        <div className="p-4 sm:p-6 border-b border-slate-800 bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-lime-400/20 border border-lime-400/40 text-lime-400 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-2xl bg-lime-400/20 border border-lime-400/40 text-lime-400 flex items-center justify-center shrink-0">
               <Building2 className="w-5 h-5" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg sm:text-xl font-black text-white tracking-tight">
-                  {companyPlace ? companyPlace.name : 'Painel da Minha Empresa'}
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-base sm:text-xl font-black text-white tracking-tight">
+                  {companyPlace ? companyPlace.name : 'Cadastro Oficial da Empresa'}
                 </h2>
                 <span className="px-2 py-0.5 rounded-full bg-lime-400/15 border border-lime-400/30 text-lime-400 text-[10px] font-black uppercase">
-                  {companyPlace ? 'No Ar no Mapa' : 'Cadastro Oficial'}
+                  {companyPlace ? 'No Ar no Mapa' : 'Google Maps Style'}
                 </span>
               </div>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-400 line-clamp-1">
                 {companyPlace 
-                  ? 'Gerencie catálogo de produtos, preços, fotos, Instagram e presença no mapa'
-                  : 'Cadastre sua empresa com foto e nome para aparecer no mapa para todos'}
+                  ? 'Gerencie catálogo de produtos, fotos, Instagram e presença no mapa'
+                  : 'Cadastre seu estabelecimento com fotos, contatos e localização exata'}
               </p>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-9 h-9 rounded-full bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {!companyPlace && (
+              <button
+                type="button"
+                onClick={handleClearDraft}
+                className="text-[11px] font-bold text-slate-400 hover:text-rose-400 flex items-center gap-1 px-2.5 py-1.5 rounded-xl hover:bg-slate-800/80 transition-colors cursor-pointer"
+                title="Limpar todos os campos e recomeçar o cadastro"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Limpar</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-9 h-9 rounded-full bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer shrink-0"
+              aria-label="Fechar"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Global Success / Error Banners */}
         {successMsg && (
-          <div className="mx-6 mt-4 p-3 rounded-2xl bg-lime-950/60 border border-lime-500/60 text-lime-300 text-xs flex items-center gap-2 animate-in fade-in">
-            <CheckCircle className="w-4 h-4 text-lime-400 shrink-0" />
-            <span>{successMsg}</span>
+          <div className="mx-4 sm:mx-6 mt-3 p-3 rounded-2xl bg-emerald-950/70 border border-emerald-500/60 text-emerald-300 text-xs flex items-center gap-2 animate-in fade-in shrink-0">
+            <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span className="font-medium">{successMsg}</span>
           </div>
         )}
         {errorMsg && (
-          <div className="mx-6 mt-4 p-3 rounded-2xl bg-red-950/60 border border-red-500/60 text-red-300 text-xs flex items-center gap-2 animate-in fade-in">
+          <div className="mx-4 sm:mx-6 mt-3 p-3 rounded-2xl bg-red-950/70 border border-red-500/60 text-red-300 text-xs flex items-center gap-2 animate-in fade-in shrink-0">
             <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-            <span>{errorMsg}</span>
+            <span className="font-medium">{errorMsg}</span>
           </div>
         )}
 
@@ -515,17 +692,36 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
           </div>
         ) : !companyPlace ? (
           /* CASE 2: USER LOGGED IN BUT DOES NOT HAVE A COMPANY REGISTERED YET */
-          <div className="flex-1 overflow-y-auto p-5 sm:p-7 space-y-6">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-7 space-y-6 overscroll-contain">
+            {/* Auto-save & Status Banner */}
+            <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-slate-800/80 border border-slate-700/80 text-xs">
+              <div className="flex items-center gap-2 text-emerald-400 font-semibold">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                </span>
+                <span>Dados pré-salvos automaticamente no navegador</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleClearDraft}
+                className="text-slate-400 hover:text-rose-400 text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Limpar formulário</span>
+              </button>
+            </div>
+
             {/* Live Map Marker Preview Banner */}
             <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-950 to-slate-900 border border-lime-400/30">
               <div className="text-[11px] font-bold text-lime-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5" />
-                <span>Prévia de Como sua Empresa Aparecerá no Mapa:</span>
+                <span>Prévia do Pino no Google Maps:</span>
               </div>
               
               {/* Authentic Map Pin Preview */}
-              <div className="py-2 flex items-center gap-3 bg-slate-900/90 p-3 rounded-xl border border-slate-800">
-                <div className="relative w-11 h-11 min-w-[44px] rounded-full bg-white border-2 border-lime-400 flex items-center justify-center shadow-lg overflow-hidden">
+              <div className="py-2.5 px-3 sm:px-4 flex items-center gap-3 bg-slate-900/95 rounded-xl border border-slate-800 shadow-lg">
+                <div className="relative w-12 h-12 min-w-[48px] rounded-full bg-white border-2 border-lime-400 flex items-center justify-center shadow-md overflow-hidden">
                   {regLogoUrl || regImageUrl ? (
                     <img
                       src={regLogoUrl || regImageUrl}
@@ -535,331 +731,512 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
                   ) : (
                     <Building2 className="w-6 h-6 text-slate-700" />
                   )}
-                  <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-lime-500 border border-white rounded-full flex items-center justify-center text-[8px] font-black text-slate-950">
+                  <div className="absolute bottom-0 right-0 w-4 h-4 bg-lime-400 border-2 border-white rounded-full flex items-center justify-center text-[9px] font-black text-slate-950">
                     ✓
                   </div>
                 </div>
 
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-extrabold text-white text-sm">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="font-extrabold text-white text-sm truncate">
                       {regName.trim() || 'Nome da Sua Empresa'}
                     </span>
-                    <span className="px-1.5 py-0.2 bg-lime-400 text-slate-950 text-[9px] font-black rounded">
+                    <span className="px-1.5 py-0.5 bg-lime-400 text-slate-950 text-[9px] font-black rounded shrink-0">
                       BairrosCity
                     </span>
                   </div>
-                  <div className="text-[11px] text-slate-400">
-                    {regSubCategory || 'Comércio'} • {regNeighborhood}
+                  <div className="text-xs text-slate-400 truncate mt-0.5">
+                    {regSubCategory || 'Comércio & Serviços'} • {regNeighborhood}, {regCity}
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Registration Form */}
-            <form onSubmit={handlePublishCompany} className="space-y-5">
-              {/* Photo & Logo Upload */}
+            <form onSubmit={handlePublishCompany} className="space-y-6">
+              {/* Hidden file inputs with refs for professional custom upload buttons */}
+              <input
+                type="file"
+                ref={regLogoFileInputRef}
+                accept="image/*"
+                onChange={(e) => handleFileUpload(e, 'regLogo')}
+                className="hidden"
+              />
+              <input
+                type="file"
+                ref={regImageFileInputRef}
+                accept="image/*"
+                onChange={(e) => handleFileUpload(e, 'regImage')}
+                className="hidden"
+              />
+
+              {/* Photos Upload Cards - Professional Google Maps Experience */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="p-4 rounded-2xl bg-slate-800/60 border border-slate-700/60 space-y-2">
-                  <label className="block text-xs font-bold text-slate-200">
-                    1. Logo / Foto do Estabelecimento <span className="text-lime-400">*</span>
-                  </label>
-                  <p className="text-[11px] text-slate-400">
-                    Esta foto aparece no círculo do pino no mapa.
-                  </p>
-                  <div className="flex items-center gap-3">
+                {/* 1. Logo / Avatar */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-slate-800/70 border border-slate-700/80 flex flex-col justify-between space-y-3">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-bold text-slate-100 flex items-center gap-1.5">
+                        <Camera className="w-3.5 h-3.5 text-lime-400" />
+                        <span>Logomarca / Foto de Perfil</span>
+                        <span className="text-lime-400">*</span>
+                      </label>
+                      <span className="text-[10px] font-bold text-lime-400 bg-lime-400/10 px-2 py-0.5 rounded-full">
+                        Pino do Mapa
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400">
+                      Esta foto aparece dentro do círculo do pino no mapa.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-3.5">
                     {regLogoUrl ? (
-                      <img
-                        src={regLogoUrl}
-                        alt="Logo"
-                        className="w-14 h-14 rounded-full object-cover border-2 border-lime-400 shrink-0"
-                      />
+                      <div className="relative group shrink-0">
+                        <img
+                          src={regLogoUrl}
+                          alt="Logo"
+                          className="w-16 h-16 rounded-full object-cover border-2 border-lime-400 shadow-md"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setRegLogoUrl('')}
+                          className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center text-xs shadow cursor-pointer transition-colors"
+                          title="Remover foto"
+                        >
+                          ×
+                        </button>
+                      </div>
                     ) : (
-                      <div className="w-14 h-14 rounded-full bg-slate-900 border border-slate-700 flex items-center justify-center text-slate-500 shrink-0">
-                        <Camera className="w-5 h-5" />
+                      <div 
+                        onClick={() => regLogoFileInputRef.current?.click()}
+                        className="w-16 h-16 rounded-full bg-slate-900 border-2 border-dashed border-slate-600 hover:border-lime-400 flex flex-col items-center justify-center text-slate-400 hover:text-lime-400 shrink-0 cursor-pointer transition-colors"
+                        title="Clique para carregar foto"
+                      >
+                        <Camera className="w-6 h-6" />
                       </div>
                     )}
-                    <div className="flex-1 space-y-1.5">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleFileUpload(e, 'regLogo')}
-                        className="text-xs text-slate-300 file:mr-2 file:py-1 file:px-2.5 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-lime-400 file:text-slate-950 hover:file:bg-lime-300 cursor-pointer"
-                      />
-                      <input
-                        type="url"
-                        placeholder="Ou cole a URL da imagem"
-                        value={regLogoUrl}
-                        onChange={(e) => setRegLogoUrl(e.target.value)}
-                        className="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-white"
-                      />
+
+                    <div className="flex-1 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => regLogoFileInputRef.current?.click()}
+                          className="px-3.5 py-2 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-all shadow-sm active:scale-95"
+                        >
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>{regLogoUrl ? 'Trocar Foto' : 'Selecionar Foto'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setIsUrlInputOpenLogo(!isUrlInputOpenLogo)}
+                          className="text-[11px] font-semibold text-slate-400 hover:text-white transition-colors cursor-pointer"
+                        >
+                          {isUrlInputOpenLogo ? 'Ocultar Link' : 'Ou Link'}
+                        </button>
+                      </div>
+
+                      {isUrlInputOpenLogo && (
+                        <input
+                          type="url"
+                          placeholder="https://exemplo.com/logo.jpg"
+                          value={regLogoUrl}
+                          onChange={(e) => setRegLogoUrl(e.target.value)}
+                          className="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-lime-400"
+                        />
+                      )}
                     </div>
                   </div>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-slate-800/60 border border-slate-700/60 space-y-2">
-                  <label className="block text-xs font-bold text-slate-200">
-                    2. Foto da Fachada / Ambiente
-                  </label>
-                  <p className="text-[11px] text-slate-400">
-                    Foto de capa exibida quando o cliente clica na sua empresa.
-                  </p>
-                  <div className="flex items-center gap-3">
+                {/* 2. Foto de Capa / Fachada */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-slate-800/70 border border-slate-700/80 flex flex-col justify-between space-y-3">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-bold text-slate-100 flex items-center gap-1.5">
+                        <ImageIcon className="w-3.5 h-3.5 text-blue-400" />
+                        <span>Foto da Fachada / Ambiente</span>
+                      </label>
+                      <span className="text-[10px] font-bold text-blue-400 bg-blue-400/10 px-2 py-0.5 rounded-full">
+                        Capa
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400">
+                      Foto grande exibida na aba detalhada da empresa.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-3.5">
                     {regImageUrl ? (
-                      <img
-                        src={regImageUrl}
-                        alt="Fachada"
-                        className="w-14 h-14 rounded-xl object-cover border border-slate-700 shrink-0"
-                      />
+                      <div className="relative group shrink-0">
+                        <img
+                          src={regImageUrl}
+                          alt="Fachada"
+                          className="w-20 h-16 rounded-xl object-cover border border-slate-600 shadow-md"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setRegImageUrl('')}
+                          className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center text-xs shadow cursor-pointer transition-colors"
+                          title="Remover foto"
+                        >
+                          ×
+                        </button>
+                      </div>
                     ) : (
-                      <div className="w-14 h-14 rounded-xl bg-slate-900 border border-slate-700 flex items-center justify-center text-slate-500 shrink-0">
-                        <Upload className="w-5 h-5" />
+                      <div 
+                        onClick={() => regImageFileInputRef.current?.click()}
+                        className="w-20 h-16 rounded-xl bg-slate-900 border-2 border-dashed border-slate-600 hover:border-blue-400 flex flex-col items-center justify-center text-slate-400 hover:text-blue-400 shrink-0 cursor-pointer transition-colors"
+                        title="Clique para carregar fachada"
+                      >
+                        <Upload className="w-6 h-6" />
                       </div>
                     )}
-                    <div className="flex-1 space-y-1.5">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleFileUpload(e, 'regImage')}
-                        className="text-xs text-slate-300 file:mr-2 file:py-1 file:px-2.5 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-slate-700 file:text-white hover:file:bg-slate-600 cursor-pointer"
-                      />
-                      <input
-                        type="url"
-                        placeholder="Ou cole a URL da fachada"
-                        value={regImageUrl}
-                        onChange={(e) => setRegImageUrl(e.target.value)}
-                        className="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-white"
-                      />
+
+                    <div className="flex-1 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => regImageFileInputRef.current?.click()}
+                          className="px-3.5 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-all shadow-sm active:scale-95"
+                        >
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>{regImageUrl ? 'Trocar Capa' : 'Selecionar Capa'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setIsUrlInputOpenImage(!isUrlInputOpenImage)}
+                          className="text-[11px] font-semibold text-slate-400 hover:text-white transition-colors cursor-pointer"
+                        >
+                          {isUrlInputOpenImage ? 'Ocultar Link' : 'Ou Link'}
+                        </button>
+                      </div>
+
+                      {isUrlInputOpenImage && (
+                        <input
+                          type="url"
+                          placeholder="https://exemplo.com/fachada.jpg"
+                          value={regImageUrl}
+                          onChange={(e) => setRegImageUrl(e.target.value)}
+                          className="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-400"
+                        />
+                      )}
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Name & Category */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-200 mb-1">
-                    Nome da Empresa <span className="text-lime-400">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ex: Padaria do Bairro, Barbearia Silva"
-                    value={regName}
-                    onChange={(e) => setRegName(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-sm text-white font-semibold focus:outline-none focus:border-lime-400"
-                  />
+              {/* Section 1: Identificação */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-slate-800/40 border border-slate-700/60 space-y-4">
+                <div className="text-xs font-bold uppercase tracking-wider text-lime-400 flex items-center gap-1.5">
+                  <Building2 className="w-4 h-4" />
+                  <span>1. Identificação da Empresa</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-200 mb-1.5">
+                      Nome Comercial da Empresa <span className="text-lime-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ex: Padaria Bella Vista, Barbearia Silva"
+                      value={regName}
+                      onChange={(e) => setRegName(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-sm text-white font-semibold placeholder-slate-500 focus:outline-none focus:border-lime-400 transition-colors"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-200 mb-1.5">
+                      Categoria Principal <span className="text-lime-400">*</span>
+                    </label>
+                    <select
+                      value={regCategory}
+                      onChange={(e) => setRegCategory(e.target.value as CategoryType)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-sm text-white focus:outline-none focus:border-lime-400 transition-colors cursor-pointer"
+                    >
+                      {Object.entries(CATEGORY_CONFIG).map(([key, cfg]) => (
+                        <option key={key} value={key} className="bg-slate-900 text-white">
+                          {cfg.name}
+                        </option>
+                      ))}
+                    </select>
+
+                    {regCategory === 'other' && (
+                      <div className="mt-2">
+                        <input
+                          type="text"
+                          required
+                          placeholder="Digite o nome da sua categoria (ex: Vidraçaria, Papelaria)"
+                          value={regCustomCategory}
+                          onChange={(e) => setRegCustomCategory(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-lime-400/80 text-xs text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-lime-400"
+                        />
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-200 mb-1">
-                    Categoria Principal
-                  </label>
-                  <select
-                    value={regCategory}
-                    onChange={(e) => setRegCategory(e.target.value as CategoryType)}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-sm text-white focus:outline-none focus:border-lime-400"
-                  >
-                    <option value="restaurant">Restaurante / Alimentação</option>
-                    <option value="cafe">Lanchonete / Café / Açaiteria</option>
-                    <option value="shopping">Mercadinho / Loja / Comércio</option>
-                    <option value="services">Serviços / Barbearia / Salão / Oficina</option>
-                    <option value="nightlife">Bar / Petiscaria</option>
-                    <option value="leisure">Lazer / Academia</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* SubCategory & Neighborhood */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-200 mb-1">
-                    Especialidade / Ramo
+                  <label className="block text-xs font-bold text-slate-200 mb-1.5">
+                    Especialidade / Ramo de Atuação
                   </label>
                   <input
                     type="text"
-                    placeholder="Ex: Pizzaria, Barba & Cabelo, Autopeças"
+                    placeholder="Ex: Pizzas artesanais, Cortes modernos, Peças para motos"
                     value={regSubCategory}
                     onChange={(e) => setRegSubCategory(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-xs text-white focus:outline-none focus:border-lime-400"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-200 mb-1">
-                    Bairro Regional
-                  </label>
-                  <select
-                    value={regNeighborhood}
-                    onChange={(e) => setRegNeighborhood(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-xs text-white focus:outline-none focus:border-lime-400"
-                  >
-                    {NEIGHBORHOODS.map((b) => (
-                      <option key={b} value={b}>
-                        {b}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-200 mb-1">
-                    Cidade
-                  </label>
-                  <input
-                    type="text"
-                    value={regCity}
-                    onChange={(e) => setRegCity(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-xs text-white focus:outline-none focus:border-lime-400"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-lime-400 transition-colors"
                   />
                 </div>
               </div>
 
-              {/* Address & Map Pin Location */}
-              <div className="space-y-2">
-                <label className="block text-xs font-bold text-slate-200">
-                  Endereço Completo <span className="text-lime-400">*</span>
-                </label>
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <MapPin className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+              {/* Section 2: Localização & Ponto no Mapa */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-slate-800/40 border border-slate-700/60 space-y-4">
+                <div className="text-xs font-bold uppercase tracking-wider text-lime-400 flex items-center gap-1.5">
+                  <MapPin className="w-4 h-4" />
+                  <span>2. Localização & Ponto Exato no Mapa</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-200 mb-1.5">
+                      Bairro Regional <span className="text-lime-400">*</span>
+                    </label>
+                    <select
+                      value={regNeighborhood}
+                      onChange={(e) => setRegNeighborhood(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-lime-400 transition-colors cursor-pointer"
+                    >
+                      {NEIGHBORHOODS.map((b) => (
+                        <option key={b} value={b} className="bg-slate-900 text-white">
+                          {b}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-200 mb-1.5">
+                      Cidade <span className="text-lime-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={regCity}
+                      onChange={(e) => setRegCity(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-lime-400 transition-colors"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-200 mb-1.5">
+                    Endereço Completo & Referência <span className="text-lime-400">*</span>
+                  </label>
+                  <div className="relative">
+                    <MapPin className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
                     <input
                       type="text"
                       required
-                      placeholder="Rua, número, complemento e ponto de referência"
+                      placeholder="Rua, número, galpão, sala ou ponto de referência conhecido"
                       value={regAddress}
                       onChange={(e) => setRegAddress(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-xs text-white focus:outline-none focus:border-lime-400"
+                      className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-lime-400 transition-colors"
                     />
                   </div>
+                </div>
 
-                  {onStartPickingLocation && (
+                {/* Interactive Map Location Card with Pre-Saved Assurance */}
+                <div className={`p-4 rounded-2xl border transition-all ${
+                  hasPickedCoord
+                    ? 'bg-emerald-950/40 border-emerald-500/60'
+                    : 'bg-blue-950/40 border-blue-500/40'
+                }`}>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                        hasPickedCoord
+                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                          : 'bg-blue-500/20 text-blue-400 border border-blue-500/40'
+                      }`}>
+                        {hasPickedCoord ? (
+                          <CheckCheck className="w-5 h-5" />
+                        ) : (
+                          <Compass className="w-5 h-5" />
+                        )}
+                      </div>
+
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-white">
+                            {hasPickedCoord ? 'Ponto Marcado no Mapa com Sucesso' : 'Posicionamento do Pino no Mapa'}
+                          </span>
+                          {hasPickedCoord && (
+                            <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase">
+                              ✓ Confirmado
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-300 mt-0.5">
+                          {hasPickedCoord ? (
+                            <span>Coordenadas exatas: <strong>{regLat.toFixed(5)}, {regLng.toFixed(5)}</strong></span>
+                          ) : (
+                            <span>Clique para abrir o mapa e escolher a posição do seu pino. O que você preencheu <strong>não será perdido</strong>.</span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+
                     <button
                       type="button"
-                      onClick={() => {
-                        onClose();
-                        onStartPickingLocation();
-                      }}
-                      className="px-3.5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1.5 shrink-0 cursor-pointer shadow-md transition-colors"
-                      title="Clique no mapa para posicionar seu pino com exatidão"
+                      onClick={handleStartPickLocationOnMap}
+                      className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 shrink-0 cursor-pointer shadow-md transition-all active:scale-95 ${
+                        hasPickedCoord
+                          ? 'bg-slate-800 hover:bg-slate-700 text-white border border-slate-600'
+                          : 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/30'
+                      }`}
                     >
                       <Compass className="w-4 h-4" />
-                      <span>Definir no Mapa</span>
+                      <span>{hasPickedCoord ? 'Alterar no Mapa' : 'Definir Ponto no Mapa'}</span>
                     </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Contacts: WhatsApp & Instagram */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-200 mb-1">
-                    WhatsApp Comercial <span className="text-lime-400">*</span>
-                  </label>
-                  <div className="relative">
-                    <MessageCircle className="w-4 h-4 absolute left-3 top-2.5 text-emerald-400" />
-                    <input
-                      type="tel"
-                      required
-                      placeholder="(81) 98888-7777"
-                      value={regWhatsapp}
-                      onChange={(e) => setRegWhatsapp(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-xs text-white focus:outline-none focus:border-lime-400"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-200 mb-1">
-                    Instagram Oficial
-                  </label>
-                  <div className="relative">
-                    <Instagram className="w-4 h-4 absolute left-3 top-2.5 text-pink-400" />
-                    <input
-                      type="text"
-                      placeholder="@meunegocio"
-                      value={regInstagram}
-                      onChange={(e) => setRegInstagram(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-xs text-white focus:outline-none focus:border-lime-400"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-200 mb-1">
-                    Horário de Funcionamento
-                  </label>
-                  <div className="relative">
-                    <Clock className="w-4 h-4 absolute left-3 top-2.5 text-amber-400" />
-                    <input
-                      type="text"
-                      placeholder="Seg a Sáb: 08:00 - 20:00"
-                      value={regHours}
-                      onChange={(e) => setRegHours(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-xs text-white focus:outline-none focus:border-lime-400"
-                    />
                   </div>
                 </div>
               </div>
 
-              {/* Description */}
-              <div>
-                <label className="block text-xs font-bold text-slate-200 mb-1">
-                  Sobre a Empresa / Descrição
-                </label>
+              {/* Section 3: Canais de Contato & Horário */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-slate-800/40 border border-slate-700/60 space-y-4">
+                <div className="text-xs font-bold uppercase tracking-wider text-lime-400 flex items-center gap-1.5">
+                  <Phone className="w-4 h-4" />
+                  <span>3. Canais de Atendimento & Horário</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-200 mb-1.5">
+                      WhatsApp Comercial <span className="text-lime-400">*</span>
+                    </label>
+                    <div className="relative">
+                      <MessageCircle className="w-4 h-4 absolute left-3 top-3 text-emerald-400" />
+                      <input
+                        type="tel"
+                        required
+                        placeholder="(81) 98888-7777"
+                        value={regWhatsapp}
+                        onChange={(e) => setRegWhatsapp(e.target.value)}
+                        className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-lime-400 transition-colors"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-200 mb-1.5">
+                      Instagram Oficial
+                    </label>
+                    <div className="relative">
+                      <Instagram className="w-4 h-4 absolute left-3 top-3 text-pink-400" />
+                      <input
+                        type="text"
+                        placeholder="@seunegocio"
+                        value={regInstagram}
+                        onChange={(e) => setRegInstagram(e.target.value)}
+                        className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-lime-400 transition-colors"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-200 mb-1.5">
+                      Horário de Funcionamento
+                    </label>
+                    <div className="relative">
+                      <Clock className="w-4 h-4 absolute left-3 top-3 text-amber-400" />
+                      <input
+                        type="text"
+                        placeholder="Seg a Sáb: 08:00 às 20:00"
+                        value={regHours}
+                        onChange={(e) => setRegHours(e.target.value)}
+                        className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-lime-400 transition-colors"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 4: Sobre a Empresa */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-slate-800/40 border border-slate-700/60 space-y-3">
+                <div className="text-xs font-bold uppercase tracking-wider text-lime-400 flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4" />
+                  <span>4. Sobre o Estabelecimento</span>
+                </div>
+
                 <textarea
                   rows={2}
                   value={regDescription}
                   onChange={(e) => setRegDescription(e.target.value)}
-                  placeholder="Conte um pouco sobre seu negócio, diferenciais, formas de pagamento, etc."
-                  className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-xs text-white focus:outline-none focus:border-lime-400"
+                  placeholder="Conte um pouco sobre sua empresa, produtos que vende, formas de pagamento (Pix, cartões) e diferenciais..."
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-lime-400 transition-colors"
                 />
               </div>
 
-              {/* Initial Product / Catalog Quick Add */}
-              <div className="p-4 rounded-2xl bg-slate-800/40 border border-slate-700/60 space-y-2.5">
+              {/* Section 5: Item Inicial do Catálogo (Opcional) */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-slate-800/40 border border-slate-700/60 space-y-3">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <ShoppingBag className="w-4 h-4 text-lime-400" />
-                    <span className="text-xs font-bold text-white">
-                      Primeiro Item do Catálogo (Opcional)
-                    </span>
+                  <div className="text-xs font-bold uppercase tracking-wider text-lime-400 flex items-center gap-1.5">
+                    <ShoppingBag className="w-4 h-4" />
+                    <span>5. Primeiro Item do Catálogo (Opcional)</span>
                   </div>
-                  <span className="text-[10px] text-slate-400">Você poderá cadastrar mais itens depois</span>
+                  <span className="text-[11px] text-slate-400">Poderá adicionar mais depois</span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <input
                     type="text"
                     placeholder="Nome do produto ou serviço (ex: Marmita Especial)"
                     value={regFirstProdName}
                     onChange={(e) => setRegFirstProdName(e.target.value)}
-                    className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white"
+                    className="px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-lime-400 transition-colors"
                   />
                   <input
                     type="text"
                     placeholder="Preço (ex: R$ 25,00)"
                     value={regFirstProdPrice}
                     onChange={(e) => setRegFirstProdPrice(e.target.value)}
-                    className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white"
+                    className="px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-lime-400 transition-colors"
                   />
                 </div>
               </div>
 
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={publishing}
-                className="w-full py-4 rounded-2xl bg-lime-400 hover:bg-lime-300 text-slate-950 font-black text-sm tracking-wide shadow-xl shadow-lime-400/20 flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50"
-              >
-                {publishing ? (
-                  <div className="w-5 h-5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <>
-                    <Sparkles className="w-5 h-5 text-slate-950 fill-slate-950" />
-                    <span>Publicar Minha Empresa no Mapa Agora</span>
-                  </>
-                )}
-              </button>
+              {/* Action Buttons: Submit & Clear */}
+              <div className="pt-2 space-y-3">
+                <button
+                  type="submit"
+                  disabled={publishing}
+                  className="w-full py-4 rounded-2xl bg-lime-400 hover:bg-lime-300 text-slate-950 font-black text-sm tracking-wide shadow-xl shadow-lime-400/20 flex items-center justify-center gap-2.5 cursor-pointer transition-all disabled:opacity-50 active:scale-[0.99]"
+                >
+                  {publishing ? (
+                    <div className="w-5 h-5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <Sparkles className="w-5 h-5 text-slate-950 fill-slate-950" />
+                      <span>Publicar Minha Empresa no Mapa Agora</span>
+                    </>
+                  )}
+                </button>
+
+                <div className="text-center">
+                  <button
+                    type="button"
+                    onClick={handleClearDraft}
+                    className="text-xs text-slate-400 hover:text-rose-400 transition-colors cursor-pointer py-1 px-3"
+                  >
+                    Limpar campos preenchidos e reiniciar
+                  </button>
+                </div>
+              </div>
             </form>
           </div>
         ) : (
@@ -1131,20 +1508,34 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
 
                     <div>
                       <label className="block text-xs font-bold text-slate-300 mb-1">
-                        Categoria
+                        Categoria Principal <span className="text-lime-400">*</span>
                       </label>
                       <select
                         value={category}
                         onChange={(e) => setCategory(e.target.value as CategoryType)}
                         className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-sm text-white focus:outline-none focus:border-lime-400"
                       >
-                        <option value="restaurant">Restaurante / Alimentação</option>
-                        <option value="cafe">Lanchonete / Café</option>
-                        <option value="shopping">Mercadinho / Loja</option>
-                        <option value="services">Serviços / Barbearia / Salão</option>
-                        <option value="nightlife">Bar / Noite</option>
-                        <option value="leisure">Lazer / Esportes</option>
+                        {Object.entries(CATEGORY_CONFIG).map(([key, cfg]) => (
+                          <option key={key} value={key} className="bg-slate-900 text-white">
+                            {cfg.name}
+                          </option>
+                        ))}
                       </select>
+                      {category === 'other' && (
+                        <div className="mt-2.5">
+                          <label className="block text-[11px] font-bold text-lime-400 mb-1">
+                            Escreva o nome da sua Categoria Personalizada *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="Ex: Vidraçaria, Papelaria, Assistência Técnica, etc."
+                            value={customCategory}
+                            onChange={(e) => setCustomCategory(e.target.value)}
+                            className="w-full px-3 py-2 rounded-xl bg-slate-850 border border-lime-400/80 text-xs text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-lime-400"
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
 

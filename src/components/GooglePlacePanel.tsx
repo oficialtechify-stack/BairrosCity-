@@ -126,15 +126,15 @@ export const GooglePlacePanel: React.FC<GooglePlacePanelProps> = ({
 
   return (
     <>
-      {/* 1. WHEN MINIMIZED: Floating Re-expand Button on Left Edge + Bottom Pill */}
+      {/* 1. WHEN MINIMIZED: Floating Re-expand Button on Left Edge (Desktop Only) */}
       {!isOpen && (
         <>
-          {/* Authentic Google Maps Side Tab to Expand Panel - centered vertically away from top bar */}
+          {/* Authentic Google Maps Side Tab to Expand Panel */}
           <button
             id="google-maps-expand-panel-btn"
             type="button"
             onClick={onToggleOpen}
-            className="absolute top-1/2 -translate-y-1/2 left-16 z-[420] bg-white text-slate-700 hover:text-blue-600 rounded-r-lg shadow-md border-y border-r border-slate-300 py-4 px-1.5 flex flex-col items-center justify-center gap-1.5 transition-all hover:pl-2.5 group cursor-pointer"
+            className="hidden lg:flex absolute top-1/2 -translate-y-1/2 left-16 z-[420] bg-white text-slate-700 hover:text-blue-600 rounded-r-lg shadow-md border-y border-r border-slate-300 py-4 px-1.5 flex-col items-center justify-center gap-1.5 transition-all hover:pl-2.5 group cursor-pointer"
             title="Mostrar painel de locais"
           >
             <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-blue-600 transition-transform group-hover:translate-x-0.5" />
@@ -143,8 +143,8 @@ export const GooglePlacePanel: React.FC<GooglePlacePanelProps> = ({
             </span>
           </button>
 
-          {/* Bottom Floating Pill Button (great for mobile & instant discovery) */}
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[420] pointer-events-auto">
+          {/* Bottom Floating Pill Button (Desktop only) */}
+          <div className="hidden lg:block absolute bottom-6 left-1/2 -translate-x-1/2 z-[420] pointer-events-auto">
             <button
               id="google-maps-show-list-bottom-btn"
               type="button"
@@ -158,10 +158,10 @@ export const GooglePlacePanel: React.FC<GooglePlacePanelProps> = ({
         </>
       )}
 
-      {/* 2. WHEN OPEN: Full Google Maps Sliding Panel */}
+      {/* 2. WHEN OPEN: Full Google Maps Sliding Panel (Desktop Only) */}
       <div
         id="google-maps-left-panel-container"
-        className={`absolute top-0 bottom-0 left-16 z-[400] transition-transform duration-300 ease-out flex ${
+        className={`hidden lg:flex absolute top-0 bottom-0 left-16 z-[400] transition-transform duration-300 ease-out ${
           isOpen ? 'translate-x-0' : '-translate-x-full pointer-events-none'
         }`}
       >
@@ -285,9 +285,31 @@ export const GooglePlacePanel: React.FC<GooglePlacePanelProps> = ({
                   </div>
                 )}
 
-                <h2 className="text-xl font-bold text-slate-900 leading-tight">
-                  {selectedPlace.name}
-                </h2>
+                <div className="flex items-start gap-3 mt-1">
+                  {(selectedPlace.logoUrl || selectedPlace.imageUrl) && (
+                    <div className="relative shrink-0">
+                      <img
+                        src={selectedPlace.logoUrl || selectedPlace.imageUrl}
+                        alt={selectedPlace.name}
+                        className="w-14 h-14 rounded-2xl object-cover border-2 border-white shadow-md bg-white -mt-8 relative z-10"
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                      {selectedPlace.isRegisteredCompany && (
+                        <div className="absolute -bottom-1 -right-1 z-20 w-5 h-5 rounded-full bg-lime-400 border-2 border-white flex items-center justify-center text-[10px] font-black text-slate-950 shadow-xs" title="Empresa Verificada">
+                          ✓
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-xl font-bold text-slate-900 leading-tight">
+                      {selectedPlace.name}
+                    </h2>
+                  </div>
+                </div>
 
                 {/* Rating Stars row */}
                 <div className="flex items-center gap-2 mt-1.5">

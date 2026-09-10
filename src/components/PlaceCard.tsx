@@ -98,9 +98,22 @@ export const PlaceCard: React.FC<PlaceCardProps> = ({
                 <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
                   {place.subCategory}
                 </span>
-                <h3 className="text-base font-bold text-slate-900 group-hover:text-indigo-600 transition-colors line-clamp-1">
-                  {place.name}
-                </h3>
+                <div className="flex items-center gap-2 mt-0.5">
+                  {place.logoUrl && (
+                    <img
+                      src={place.logoUrl}
+                      alt={place.name}
+                      className="w-5 h-5 rounded-full object-cover border border-slate-200 shrink-0"
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  )}
+                  <h3 className="text-base font-bold text-slate-900 group-hover:text-indigo-600 transition-colors line-clamp-1">
+                    {place.name}
+                  </h3>
+                </div>
               </div>
 
               {/* Star Rating Badge */}

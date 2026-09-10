@@ -40,7 +40,7 @@ export const GoogleMapsRail: React.FC<GoogleMapsRailProps> = ({
   return (
     <aside
       id="google-maps-left-rail"
-      className="absolute top-0 bottom-0 left-0 z-[450] w-16 bg-white border-r border-slate-200/90 flex flex-col items-center justify-between py-3 select-none shadow-sm"
+      className="hidden lg:flex absolute top-0 bottom-0 left-0 z-[450] w-16 bg-white border-r border-slate-200/90 flex-col items-center justify-between py-3 select-none shadow-sm"
     >
       {/* Top Section */}
       <div className="flex flex-col items-center gap-3 w-full">

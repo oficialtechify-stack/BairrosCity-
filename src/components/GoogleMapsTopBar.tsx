@@ -36,7 +36,11 @@ import {
   GraduationCap,
   Building2,
   User,
-  Settings
+  Settings,
+  Mic,
+  Fuel,
+  Coffee,
+  Scissors
 } from 'lucide-react';
 
 interface GoogleMapsTopBarProps {
@@ -110,16 +114,15 @@ export const GoogleMapsTopBar: React.FC<GoogleMapsTopBarProps> = ({
   };
 
   const categories = [
-    { id: 'museum', label: 'Museus & Cultura', icon: Landmark, catMap: 'leisure' as CategoryType },
-    { id: 'hospital', label: 'UPAs & Hospitais', icon: Cross, catMap: 'services' as CategoryType },
-    { id: 'transit', label: 'Estações & Terminais', icon: Bus, catMap: 'services' as CategoryType },
-    { id: 'military', label: 'Militar & Defesa', icon: Shield, catMap: 'services' as CategoryType },
-    { id: 'sports', label: 'Arenas & Esportes', icon: Trophy, catMap: 'leisure' as CategoryType },
-    { id: 'church', label: 'Igrejas & Templos', icon: Church, catMap: 'leisure' as CategoryType },
-    { id: 'shopping', label: 'Shopping Centers', icon: ShoppingBag, catMap: 'shopping' as CategoryType },
-    { id: 'school', label: 'Escolas & Faculdades', icon: GraduationCap, catMap: 'services' as CategoryType },
-    { id: 'event', label: 'Eventos da Região', icon: Calendar, catMap: 'event' as CategoryType },
-    { id: 'companies', label: 'Empresas BairrosCity', icon: Sparkles, catMap: 'all' as any },
+    { id: 'gas', label: 'Gasolina', icon: Fuel, catMap: 'automotive' as CategoryType },
+    { id: 'restaurant', label: 'Restaurantes', icon: Utensils, catMap: 'restaurant' as CategoryType },
+    { id: 'cafe', label: 'Lanches & Açaí', icon: Coffee, catMap: 'cafe' as CategoryType },
+    { id: 'supermarket', label: 'Mercados & Lojas', icon: ShoppingBag, catMap: 'supermarket' as CategoryType },
+    { id: 'pharmacy', label: 'Farmácias & Saúde', icon: Pill, catMap: 'pharmacy' as CategoryType },
+    { id: 'beauty', label: 'Barbearia & Beleza', icon: Scissors, catMap: 'beauty' as CategoryType },
+    { id: 'event', label: 'Eventos & Lazer', icon: Calendar, catMap: 'event' as CategoryType },
+    { id: 'companies', label: 'BairrosCity Empresas', icon: Sparkles, catMap: 'all' as any },
+    { id: 'hospital', label: 'UPAs & Clínicas', icon: Cross, catMap: 'healthcare' as CategoryType },
   ];
 
   // Matching neighborhoods from database of coordinates
@@ -205,8 +208,8 @@ export const GoogleMapsTopBar: React.FC<GoogleMapsTopBarProps> = ({
   };
 
   return (
-    <header className="absolute top-2 sm:top-2.5 left-16 right-2 sm:right-4 z-[460] flex flex-col gap-2 pointer-events-none">
-      {/* TOP ROW: Search Bar & Unified Options Strip (Centred & Professional, No Collisions!) */}
+    <header className="absolute top-2 sm:top-2.5 left-2 right-2 sm:left-4 sm:right-4 lg:left-20 lg:right-4 z-[460] flex flex-col gap-2 pointer-events-none">
+      {/* TOP ROW: Search Bar & Unified Options Strip */}
       <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2 pointer-events-auto">
         
         {/* The Search Bar Component with Autocomplete Dropdown */}
@@ -235,7 +238,7 @@ export const GoogleMapsTopBar: React.FC<GoogleMapsTopBarProps> = ({
                 setIsDropdownOpen(true);
               }}
               onFocus={() => setIsDropdownOpen(true)}
-              placeholder="Pesquise no Google Maps (ex: Tejipió, Curado...)"
+              placeholder="Pesquise aqui (ex: Curado, padaria...)"
               className="flex-1 text-sm text-slate-800 placeholder-slate-500 font-normal bg-transparent focus:outline-none min-w-0"
             />
 
@@ -263,24 +266,67 @@ export const GoogleMapsTopBar: React.FC<GoogleMapsTopBarProps> = ({
               <Search className="w-4 h-4 text-slate-500" />
             </button>
 
-            {/* Vertical divider */}
-            <div className="w-[1px] h-5 bg-slate-200 shrink-0" />
+            {/* Microphone button (Voice Search prompt) */}
+            <button
+              type="button"
+              onClick={() => {
+                const term = prompt('Fale ou digite o que procura no bairro:');
+                if (term) {
+                  onSearchChange(term);
+                  setIsDropdownOpen(true);
+                }
+              }}
+              className="w-8 h-8 rounded-full flex items-center justify-center text-slate-500 hover:text-blue-600 hover:bg-slate-100 transition-colors shrink-0 cursor-pointer"
+              title="Pesquisa por voz"
+            >
+              <Mic className="w-4 h-4" />
+            </button>
 
-            {/* Directions Blue Circle Icon */}
+            {/* User Avatar on Mobile */}
+            <div className="md:hidden shrink-0">
+              {currentUser ? (
+                <button
+                  type="button"
+                  onClick={() => setUserDropdownOpen((prev) => !prev)}
+                  className="w-7 h-7 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center overflow-hidden border border-slate-300 cursor-pointer"
+                  title={currentUser.name}
+                >
+                  {currentUser.avatarUrl ? (
+                    <img src={currentUser.avatarUrl} alt={currentUser.name} className="w-full h-full object-cover" />
+                  ) : (
+                    currentUser.name.charAt(0).toUpperCase()
+                  )}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onGoogleLogin}
+                  className="w-7 h-7 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center cursor-pointer"
+                  title="Fazer Login"
+                >
+                  <User className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Desktop Vertical divider */}
+            <div className="hidden md:block w-[1px] h-5 bg-slate-200 shrink-0" />
+
+            {/* Desktop Directions Blue Circle Icon */}
             <button
               type="button"
               onClick={onToggleSidePanel}
-              className="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 transition-colors shadow-xs shrink-0 cursor-pointer"
+              className="hidden md:flex w-7 h-7 rounded-full bg-blue-600 text-white items-center justify-center hover:bg-blue-700 transition-colors shadow-xs shrink-0 cursor-pointer"
               title={isSidePanelOpen ? "Alternar lista de locais" : "Mostrar lista de locais"}
             >
               <Navigation className="w-3.5 h-3.5 fill-white" />
             </button>
 
-            {/* Toggle Lista Button */}
+            {/* Desktop Toggle Lista Button */}
             <button
               type="button"
               onClick={onToggleSidePanel}
-              className={`px-2 py-1 rounded-md text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer shrink-0 ${
+              className={`hidden md:flex px-2 py-1 rounded-md text-xs font-bold items-center gap-1 transition-colors cursor-pointer shrink-0 ${
                 isSidePanelOpen
                   ? 'bg-blue-50 text-blue-700 hover:bg-blue-100'
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -521,7 +567,7 @@ export const GoogleMapsTopBar: React.FC<GoogleMapsTopBarProps> = ({
         </div>
 
         {/* UNIFIED OPTIONS STRIP (Centralized, Clean, Professional, Completely Integrated!) */}
-        <div className="flex items-center gap-1.5 sm:gap-2 p-1 rounded-full bg-white/95 border border-slate-200/90 shadow-[0_2px_8px_rgba(0,0,0,0.18)] backdrop-blur-md shrink-0">
+        <div className="hidden md:flex items-center gap-1.5 sm:gap-2 p-1 rounded-full bg-white/95 border border-slate-200/90 shadow-[0_2px_8px_rgba(0,0,0,0.18)] backdrop-blur-md shrink-0">
           {/* Raio / Distância Selector */}
           <div className="relative pl-1">
             <select
@@ -735,7 +781,7 @@ export const GoogleMapsTopBar: React.FC<GoogleMapsTopBarProps> = ({
 
       {/* ROW 2: Horizontal Category Pills Carousel (Google Maps Authentic Style) */}
       <div className={`pointer-events-auto flex items-center gap-1.5 overflow-hidden max-w-full transition-all duration-300 ${
-        isSidePanelOpen ? 'hidden md:flex md:ml-[400px] lg:ml-[420px]' : ''
+        isSidePanelOpen ? 'hidden lg:flex lg:ml-[420px]' : ''
       }`}>
         {/* Scroll Left Button */}
         <button

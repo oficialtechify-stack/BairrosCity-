@@ -88,6 +88,9 @@ export interface UserLocation {
   lng: number;
   name?: string;
   accuracy?: number;
+  heading?: number | null; // 0 to 360 degrees
+  speed?: number | null; // m/s
+  isRealTime?: boolean;
 }
 
 export type DistanceFilter = 0 | 1 | 3 | 5 | 10 | 25; // 0 = unlimited
