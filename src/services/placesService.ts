@@ -90,7 +90,7 @@ export function subscribePlaces(callback: (places: Place[]) => void) {
         instagram: data.instagram || '',
         website: data.website || '',
         hours: data.hours || '',
-        imageUrl: data.imageUrl || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&auto=format&fit=crop&q=80',
+        imageUrl: data.imageUrl || data.photoUrl || '',
         logoUrl: data.logoUrl || '',
         isRegisteredCompany: data.isRegisteredCompany !== false,
         rating: Number(data.rating) || 5.0,

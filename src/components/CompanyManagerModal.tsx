@@ -42,12 +42,23 @@ import { uploadCompanyImage } from '../services/storageService';
 import { saveCompanyToFirestore } from '../services/companiesService';
 import { db, doc, setDoc, auth } from '../lib/firebase';
 
+const cleanInitialImage = (url?: string | null): string => {
+  if (!url) return '';
+  if (typeof url === 'string' && url.includes('unsplash.com')) return '';
+  return url;
+};
+
 const COMPANY_DRAFT_KEY = 'bairromap_company_reg_draft_v2';
 
 const loadCompanyDraft = () => {
   try {
     const saved = localStorage.getItem(COMPANY_DRAFT_KEY);
-    if (saved) return JSON.parse(saved);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed.regLogoUrl && parsed.regLogoUrl.includes('unsplash.com')) parsed.regLogoUrl = '';
+      if (parsed.regImageUrl && parsed.regImageUrl.includes('unsplash.com')) parsed.regImageUrl = '';
+      return parsed;
+    }
   } catch (e) {
     console.warn('Failed to parse company draft', e);
   }
@@ -90,7 +101,7 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
   const [errorMsg, setErrorMsg] = useState('');
   const [loggingIn, setLoggingIn] = useState(false);
 
-  // Form states for existing company
+  // Form states for existing company - start clean without pre-ready unsplash images
   const [name, setName] = useState(companyPlace?.name || currentUser?.companyName || '');
   const [category, setCategory] = useState<CategoryType>(companyPlace?.category || 'restaurant');
   const [customCategory, setCustomCategory] = useState(companyPlace?.customCategory || '');
@@ -102,8 +113,8 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
   const [whatsapp, setWhatsapp] = useState(companyPlace?.whatsapp || '');
   const [hours, setHours] = useState(companyPlace?.hours || 'Seg a Sáb: 08:00 - 20:00');
   const [description, setDescription] = useState(companyPlace?.description || '');
-  const [imageUrl, setImageUrl] = useState(companyPlace?.imageUrl || '');
-  const [logoUrl, setLogoUrl] = useState(companyPlace?.logoUrl || '');
+  const [imageUrl, setImageUrl] = useState(cleanInitialImage(companyPlace?.imageUrl));
+  const [logoUrl, setLogoUrl] = useState(cleanInitialImage(companyPlace?.logoUrl));
   const [instagram, setInstagram] = useState(companyPlace?.instagram || '');
   const [website, setWebsite] = useState(companyPlace?.website || '');
   const [isPaused, setIsPaused] = useState(Boolean(companyPlace?.isPaused));
@@ -116,7 +127,7 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
   const [newProdDesc, setNewProdDesc] = useState('');
   const [newProdImage, setNewProdImage] = useState('');
 
-  // Pre-saved registration draft initialization (so data is never lost when user picks a location on the map!)
+  // Pre-saved registration draft initialization - clean without pre-ready unsplash images
   const initialDraft = loadCompanyDraft();
   const [regName, setRegName] = useState(initialDraft?.regName ?? (currentUser?.companyName || currentUser?.name || ''));
   const [regCategory, setRegCategory] = useState<CategoryType>(initialDraft?.regCategory ?? 'restaurant');
@@ -130,15 +141,13 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
   const [regInstagram, setRegInstagram] = useState(initialDraft?.regInstagram ?? '');
   const [regHours, setRegHours] = useState(initialDraft?.regHours ?? 'Seg a Sáb: 08:00 às 20:00');
   const [regDescription, setRegDescription] = useState(initialDraft?.regDescription ?? 'Atendimento com excelência e qualidade no bairro!');
-  const [regLogoUrl, setRegLogoUrl] = useState(initialDraft?.regLogoUrl ?? '');
-  const [regImageUrl, setRegImageUrl] = useState(initialDraft?.regImageUrl ?? '');
+  const [regLogoUrl, setRegLogoUrl] = useState(cleanInitialImage(initialDraft?.regLogoUrl));
+  const [regImageUrl, setRegImageUrl] = useState(cleanInitialImage(initialDraft?.regImageUrl));
   const [regLat, setRegLat] = useState<number>(initialDraft?.regLat ?? -8.0645);
   const [regLng, setRegLng] = useState<number>(initialDraft?.regLng ?? -34.9855);
   const [hasPickedCoord, setHasPickedCoord] = useState<boolean>(Boolean(initialDraft?.hasPickedCoord));
   const [regFirstProdName, setRegFirstProdName] = useState(initialDraft?.regFirstProdName ?? '');
   const [regFirstProdPrice, setRegFirstProdPrice] = useState(initialDraft?.regFirstProdPrice ?? '');
-  const [isUrlInputOpenLogo, setIsUrlInputOpenLogo] = useState(false);
-  const [isUrlInputOpenImage, setIsUrlInputOpenImage] = useState(false);
   const [uploadingTarget, setUploadingTarget] = useState<string | null>(null);
 
   // Hidden file input refs for professional click-to-upload experience
@@ -146,6 +155,7 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
   const regImageFileInputRef = useRef<HTMLInputElement | null>(null);
   const logoFileInputRef = useRef<HTMLInputElement | null>(null);
   const imageFileInputRef = useRef<HTMLInputElement | null>(null);
+  const prodFileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Auto-save draft to localStorage whenever any registration field changes
   useEffect(() => {
@@ -277,7 +287,7 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
     }
   };
 
-  // Sync state when companyPlace updates
+  // Sync state when companyPlace updates - clean without pre-ready unsplash images
   useEffect(() => {
     if (companyPlace) {
       setName(companyPlace.name);
@@ -291,8 +301,8 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
       setWhatsapp(companyPlace.whatsapp || '');
       setHours(companyPlace.hours || '');
       setDescription(companyPlace.description || '');
-      setImageUrl(companyPlace.imageUrl);
-      setLogoUrl(companyPlace.logoUrl || '');
+      setImageUrl(cleanInitialImage(companyPlace.imageUrl));
+      setLogoUrl(cleanInitialImage(companyPlace.logoUrl));
       setInstagram(companyPlace.instagram || '');
       setWebsite(companyPlace.website || '');
       setIsPaused(Boolean(companyPlace.isPaused));
@@ -303,7 +313,7 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
     }
   }, [companyPlace]);
 
-  // File upload helper uploading to Firebase Storage under companies/{userId}/
+  // File upload helper uploading to Firebase Storage or optimized DataURL fallback
   const handleFileUpload = async (
     e: React.ChangeEvent<HTMLInputElement>, 
     target: 'logo' | 'image' | 'prod' | 'regLogo' | 'regImage'
@@ -321,13 +331,11 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
       if (target === 'logo') {
         setLogoUrl(publicUrl);
         if (companyPlace) {
-          // Explicitly sync logoUrl to company document in Firestore
           await saveCompanyToFirestore(activeUserId, { logoUrl: publicUrl }, companyPlace.id);
         }
       } else if (target === 'image') {
         setImageUrl(publicUrl);
         if (companyPlace) {
-          // Explicitly sync photoUrl to company document in Firestore
           await saveCompanyToFirestore(activeUserId, { photoUrl: publicUrl, imageUrl: publicUrl }, companyPlace.id);
         }
       } else if (target === 'prod') {
@@ -338,15 +346,17 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
         setRegImageUrl(publicUrl);
       }
 
-      setSuccessMsg('📸 Imagem carregada e salva no Firebase Storage com sucesso!');
+      setSuccessMsg('📸 Foto da galeria carregada com sucesso!');
       setTimeout(() => setSuccessMsg(''), 3500);
     } catch (err: any) {
-      console.error('Error uploading file to Firebase Storage:', err);
-      const msg = err?.message || 'Falha ao enviar imagem para o Firebase Storage.';
-      setErrorMsg(`Erro no Upload: ${msg}`);
-      alert(`Erro no Upload (Firebase Storage):\n${msg}\n\nVerifique se as regras do Firebase Storage estão ativas no console.`);
+      console.error('Error handling gallery file:', err);
+      const msg = err?.message || 'Falha ao processar arquivo da galeria.';
+      setErrorMsg(`Erro no envio: ${msg}`);
     } finally {
       setUploadingTarget(null);
+      if (e.target) {
+        e.target.value = '';
+      }
     }
   };
 
@@ -386,8 +396,8 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
     setPublishing(true);
 
     try {
-      const finalImage = regImageUrl.trim() || regLogoUrl.trim() || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&auto=format&fit=crop&q=80';
-      const finalLogo = regLogoUrl.trim() || finalImage;
+      const finalImage = cleanInitialImage(regImageUrl.trim()) || cleanInitialImage(regLogoUrl.trim()) || '';
+      const finalLogo = cleanInitialImage(regLogoUrl.trim()) || finalImage;
 
       // Initial products list
       const initialProducts: ProductItem[] = [];
@@ -535,9 +545,9 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
         whatsapp: whatsapp.trim() || '',
         hours: hours.trim() || '',
         description: description.trim(),
-        imageUrl: imageUrl.trim() || companyPlace.imageUrl || '',
-        photoUrl: imageUrl.trim() || companyPlace.imageUrl || '',
-        logoUrl: logoUrl.trim() || '',
+        imageUrl: cleanInitialImage(imageUrl.trim()),
+        photoUrl: cleanInitialImage(imageUrl.trim()),
+        logoUrl: cleanInitialImage(logoUrl.trim()),
         instagram: instagram.trim() || '',
         website: website.trim() || '',
         isPaused,
@@ -896,40 +906,28 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
                       </div>
                     )}
 
-                    <div className="flex-1 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          disabled={uploadingTarget === 'regLogo'}
-                          onClick={() => regLogoFileInputRef.current?.click()}
-                          className="px-3.5 py-2 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-all shadow-sm active:scale-95 disabled:opacity-60"
-                        >
-                          {uploadingTarget === 'regLogo' ? (
+                    <div className="flex-1 space-y-1.5">
+                      <button
+                        type="button"
+                        disabled={uploadingTarget === 'regLogo'}
+                        onClick={() => regLogoFileInputRef.current?.click()}
+                        className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-all shadow-sm active:scale-95 disabled:opacity-60"
+                      >
+                        {uploadingTarget === 'regLogo' ? (
+                          <>
                             <div className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-                          ) : (
+                            <span>Carregando Foto...</span>
+                          </>
+                        ) : (
+                          <>
                             <Upload className="w-3.5 h-3.5" />
-                          )}
-                          <span>{uploadingTarget === 'regLogo' ? 'Salvando...' : regLogoUrl ? 'Trocar Foto' : 'Selecionar Foto'}</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setIsUrlInputOpenLogo(!isUrlInputOpenLogo)}
-                          className="text-[11px] font-semibold text-slate-400 hover:text-white transition-colors cursor-pointer"
-                        >
-                          {isUrlInputOpenLogo ? 'Ocultar Link' : 'Ou Link'}
-                        </button>
-                      </div>
-
-                      {isUrlInputOpenLogo && (
-                        <input
-                          type="url"
-                          placeholder="https://exemplo.com/logo.jpg"
-                          value={regLogoUrl}
-                          onChange={(e) => setRegLogoUrl(e.target.value)}
-                          className="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-lime-400"
-                        />
-                      )}
+                            <span>{regLogoUrl ? 'Trocar da Galeria' : 'Escolher da Galeria'}</span>
+                          </>
+                        )}
+                      </button>
+                      <p className="text-[10px] text-slate-400">
+                        {regLogoUrl ? 'Foto selecionada' : 'Nenhuma imagem escolhida'}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -982,40 +980,28 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
                       </div>
                     )}
 
-                    <div className="flex-1 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          disabled={uploadingTarget === 'regImage'}
-                          onClick={() => regImageFileInputRef.current?.click()}
-                          className="px-3.5 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-all shadow-sm active:scale-95 disabled:opacity-60"
-                        >
-                          {uploadingTarget === 'regImage' ? (
+                    <div className="flex-1 space-y-1.5">
+                      <button
+                        type="button"
+                        disabled={uploadingTarget === 'regImage'}
+                        onClick={() => regImageFileInputRef.current?.click()}
+                        className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-all shadow-sm active:scale-95 disabled:opacity-60"
+                      >
+                        {uploadingTarget === 'regImage' ? (
+                          <>
                             <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          ) : (
+                            <span>Carregando Foto...</span>
+                          </>
+                        ) : (
+                          <>
                             <Upload className="w-3.5 h-3.5" />
-                          )}
-                          <span>{uploadingTarget === 'regImage' ? 'Salvando...' : regImageUrl ? 'Trocar Capa' : 'Selecionar Capa'}</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setIsUrlInputOpenImage(!isUrlInputOpenImage)}
-                          className="text-[11px] font-semibold text-slate-400 hover:text-white transition-colors cursor-pointer"
-                        >
-                          {isUrlInputOpenImage ? 'Ocultar Link' : 'Ou Link'}
-                        </button>
-                      </div>
-
-                      {isUrlInputOpenImage && (
-                        <input
-                          type="url"
-                          placeholder="https://exemplo.com/fachada.jpg"
-                          value={regImageUrl}
-                          onChange={(e) => setRegImageUrl(e.target.value)}
-                          className="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-400"
-                        />
-                      )}
+                            <span>{regImageUrl ? 'Trocar da Galeria' : 'Escolher da Galeria'}</span>
+                          </>
+                        )}
+                      </button>
+                      <p className="text-[10px] text-slate-400">
+                        {regImageUrl ? 'Foto da fachada selecionada' : 'Nenhuma imagem escolhida'}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -1464,37 +1450,68 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
                       />
                     </div>
 
-                    {/* Product Photo */}
+                    {/* Product Photo - Somente Galeria */}
                     <div>
                       <label className="block text-[11px] font-bold text-slate-300 mb-1">
-                        Foto do Produto (Opcional)
+                        Foto do Produto (Opcional - da Galeria)
                       </label>
+                      <input
+                        type="file"
+                        ref={prodFileInputRef}
+                        accept="image/*"
+                        disabled={uploadingTarget === 'prod'}
+                        onChange={(e) => handleFileUpload(e, 'prod')}
+                        className="hidden"
+                      />
                       <div className="flex items-center gap-3">
-                        {newProdImage ? (
-                          <img
-                            src={newProdImage}
-                            alt="Preview"
-                            className="w-12 h-12 rounded-xl object-cover border border-slate-700 shrink-0"
-                          />
+                        {uploadingTarget === 'prod' ? (
+                          <div className="w-12 h-12 rounded-xl bg-slate-900 border-2 border-lime-400 flex items-center justify-center shrink-0">
+                            <div className="w-4 h-4 border-2 border-lime-400 border-t-transparent rounded-full animate-spin" />
+                          </div>
+                        ) : newProdImage ? (
+                          <div className="relative group shrink-0">
+                            <img
+                              src={newProdImage}
+                              alt="Preview"
+                              className="w-12 h-12 rounded-xl object-cover border border-slate-700 shadow-sm"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setNewProdImage('')}
+                              className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center text-[10px] shadow cursor-pointer transition-colors"
+                              title="Remover foto do produto"
+                            >
+                              ×
+                            </button>
+                          </div>
                         ) : (
-                          <div className="w-12 h-12 rounded-xl bg-slate-900 border border-slate-700 flex items-center justify-center text-slate-500 shrink-0">
+                          <div 
+                            onClick={() => prodFileInputRef.current?.click()}
+                            className="w-12 h-12 rounded-xl bg-slate-900 border border-dashed border-slate-700 hover:border-lime-400 flex items-center justify-center text-slate-500 hover:text-lime-400 shrink-0 cursor-pointer transition-colors"
+                            title="Escolher foto da galeria"
+                          >
                             <Camera className="w-4 h-4" />
                           </div>
                         )}
-                        <div className="flex-1 flex gap-2">
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => handleFileUpload(e, 'prod')}
-                            className="text-xs text-slate-300 file:mr-2 file:py-1 file:px-2.5 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-slate-700 file:text-white hover:file:bg-slate-600 cursor-pointer"
-                          />
-                          <input
-                            type="url"
-                            placeholder="Ou link da foto"
-                            value={newProdImage}
-                            onChange={(e) => setNewProdImage(e.target.value)}
-                            className="flex-1 px-2.5 py-1 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white"
-                          />
+                        <div className="flex-1 flex items-center gap-2">
+                          <button
+                            type="button"
+                            disabled={uploadingTarget === 'prod'}
+                            onClick={() => prodFileInputRef.current?.click()}
+                            className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer border border-slate-700 shadow-sm active:scale-95 disabled:opacity-60"
+                          >
+                            {uploadingTarget === 'prod' ? (
+                              <>
+                                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                <span>Enviando...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Upload className="w-3.5 h-3.5" />
+                                <span>{newProdImage ? 'Trocar da Galeria' : 'Escolher da Galeria'}</span>
+                              </>
+                            )}
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -1790,82 +1807,170 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
                     />
                   </div>
 
-                  {/* Photos: Logo & Fachada */}
+                  {/* Hidden file inputs for Tab 2 gallery upload */}
+                  <input
+                    type="file"
+                    ref={logoFileInputRef}
+                    accept="image/*"
+                    disabled={uploadingTarget === 'logo'}
+                    onChange={(e) => handleFileUpload(e, 'logo')}
+                    className="hidden"
+                  />
+                  <input
+                    type="file"
+                    ref={imageFileInputRef}
+                    accept="image/*"
+                    disabled={uploadingTarget === 'image'}
+                    onChange={(e) => handleFileUpload(e, 'image')}
+                    className="hidden"
+                  />
+
+                  {/* Photos: Logo & Fachada - Somente da Galeria */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-800">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-300 mb-1">
-                        Logomarca da Empresa (Aparece no pino do mapa)
-                      </label>
-                      <div className="flex items-center gap-3">
+                    {/* Logomarca */}
+                    <div className="p-4 rounded-2xl bg-slate-800/60 border border-slate-700/80 flex flex-col justify-between space-y-3">
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-xs font-bold text-slate-100 flex items-center gap-1.5">
+                            <Camera className="w-3.5 h-3.5 text-lime-400" />
+                            <span>Logomarca (Pino do Mapa)</span>
+                          </label>
+                          <span className="text-[10px] font-bold text-lime-400 bg-lime-400/10 px-2 py-0.5 rounded-full">
+                            Pino Redondo
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400">
+                          Aparece dentro do círculo do pino no mapa.
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-3.5">
                         {uploadingTarget === 'logo' ? (
-                          <div className="w-14 h-14 rounded-full bg-slate-800 border-2 border-lime-400 flex items-center justify-center">
+                          <div className="w-16 h-16 rounded-full bg-slate-900 border-2 border-lime-400 flex flex-col items-center justify-center shrink-0">
                             <div className="w-5 h-5 border-2 border-lime-400 border-t-transparent rounded-full animate-spin" />
                           </div>
                         ) : logoUrl ? (
-                          <img
-                            src={logoUrl}
-                            alt="Logo"
-                            className="w-14 h-14 rounded-full object-cover border-2 border-lime-400"
-                          />
+                          <div className="relative group shrink-0">
+                            <img
+                              src={logoUrl}
+                              alt="Logo"
+                              className="w-16 h-16 rounded-full object-cover border-2 border-lime-400 shadow-md"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setLogoUrl('')}
+                              className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center text-xs shadow cursor-pointer transition-colors"
+                              title="Remover logomarca"
+                            >
+                              ×
+                            </button>
+                          </div>
                         ) : (
-                          <div className="w-14 h-14 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-500">
-                            <Camera className="w-5 h-5" />
+                          <div
+                            onClick={() => logoFileInputRef.current?.click()}
+                            className="w-16 h-16 rounded-full bg-slate-900 border-2 border-dashed border-slate-600 hover:border-lime-400 flex flex-col items-center justify-center text-slate-400 hover:text-lime-400 shrink-0 cursor-pointer transition-colors"
+                            title="Escolher logomarca da galeria"
+                          >
+                            <Camera className="w-6 h-6" />
                           </div>
                         )}
-                        <div className="flex-1">
-                          <input
-                            type="file"
-                            accept="image/*"
+
+                        <div className="flex-1 space-y-1.5">
+                          <button
+                            type="button"
                             disabled={uploadingTarget === 'logo'}
-                            onChange={(e) => handleFileUpload(e, 'logo')}
-                            className="text-xs text-slate-400 file:mr-2 file:py-1 file:px-2.5 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-slate-700 file:text-white hover:file:bg-slate-600 cursor-pointer disabled:opacity-50"
-                          />
-                          <input
-                            type="url"
-                            value={logoUrl}
-                            onChange={(e) => setLogoUrl(e.target.value)}
-                            placeholder="Ou link da foto"
-                            className="mt-1 w-full px-2 py-1 rounded-lg bg-slate-800 border border-slate-700 text-xs text-white"
-                          />
+                            onClick={() => logoFileInputRef.current?.click()}
+                            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-all shadow-sm active:scale-95 disabled:opacity-60"
+                          >
+                            {uploadingTarget === 'logo' ? (
+                              <>
+                                <div className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                                <span>Carregando Foto...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Upload className="w-3.5 h-3.5" />
+                                <span>{logoUrl ? 'Trocar da Galeria' : 'Escolher da Galeria'}</span>
+                              </>
+                            )}
+                          </button>
+                          <p className="text-[10px] text-slate-400">
+                            {logoUrl ? 'Logomarca selecionada' : 'Nenhuma imagem escolhida'}
+                          </p>
                         </div>
                       </div>
                     </div>
 
-                    <div>
-                      <label className="block text-xs font-bold text-slate-300 mb-1">
-                        Foto da Fachada / Ambiente
-                      </label>
-                      <div className="flex items-center gap-3">
+                    {/* Foto da Fachada */}
+                    <div className="p-4 rounded-2xl bg-slate-800/60 border border-slate-700/80 flex flex-col justify-between space-y-3">
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-xs font-bold text-slate-100 flex items-center gap-1.5">
+                            <ImageIcon className="w-3.5 h-3.5 text-blue-400" />
+                            <span>Foto da Fachada / Ambiente</span>
+                          </label>
+                          <span className="text-[10px] font-bold text-blue-400 bg-blue-400/10 px-2 py-0.5 rounded-full">
+                            Foto Principal
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400">
+                          Exibida no perfil detalhado da empresa.
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-3.5">
                         {uploadingTarget === 'image' ? (
-                          <div className="w-14 h-14 rounded-xl bg-slate-800 border-2 border-blue-400 flex items-center justify-center">
+                          <div className="w-20 h-16 rounded-xl bg-slate-900 border-2 border-blue-400 flex flex-col items-center justify-center shrink-0">
                             <div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
                           </div>
                         ) : imageUrl ? (
-                          <img
-                            src={imageUrl}
-                            alt="Fachada"
-                            className="w-14 h-14 rounded-xl object-cover border border-slate-700"
-                          />
+                          <div className="relative group shrink-0">
+                            <img
+                              src={imageUrl}
+                              alt="Fachada"
+                              className="w-20 h-16 rounded-xl object-cover border border-slate-600 shadow-md"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setImageUrl('')}
+                              className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center text-xs shadow cursor-pointer transition-colors"
+                              title="Remover foto"
+                            >
+                              ×
+                            </button>
+                          </div>
                         ) : (
-                          <div className="w-14 h-14 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-500">
-                            <Upload className="w-5 h-5" />
+                          <div
+                            onClick={() => imageFileInputRef.current?.click()}
+                            className="w-20 h-16 rounded-xl bg-slate-900 border-2 border-dashed border-slate-600 hover:border-blue-400 flex flex-col items-center justify-center text-slate-400 hover:text-blue-400 shrink-0 cursor-pointer transition-colors"
+                            title="Escolher fachada da galeria"
+                          >
+                            <Upload className="w-6 h-6" />
                           </div>
                         )}
-                        <div className="flex-1">
-                          <input
-                            type="file"
-                            accept="image/*"
+
+                        <div className="flex-1 space-y-1.5">
+                          <button
+                            type="button"
                             disabled={uploadingTarget === 'image'}
-                            onChange={(e) => handleFileUpload(e, 'image')}
-                            className="text-xs text-slate-400 file:mr-2 file:py-1 file:px-2.5 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-slate-700 file:text-white hover:file:bg-slate-600 cursor-pointer disabled:opacity-50"
-                          />
-                          <input
-                            type="url"
-                            value={imageUrl}
-                            onChange={(e) => setImageUrl(e.target.value)}
-                            placeholder="Ou link da fachada"
-                            className="mt-1 w-full px-2 py-1 rounded-lg bg-slate-800 border border-slate-700 text-xs text-white"
-                          />
+                            onClick={() => imageFileInputRef.current?.click()}
+                            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-all shadow-sm active:scale-95 disabled:opacity-60"
+                          >
+                            {uploadingTarget === 'image' ? (
+                              <>
+                                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                <span>Carregando Foto...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Upload className="w-3.5 h-3.5" />
+                                <span>{imageUrl ? 'Trocar da Galeria' : 'Escolher da Galeria'}</span>
+                              </>
+                            )}
+                          </button>
+                          <p className="text-[10px] text-slate-400">
+                            {imageUrl ? 'Foto da fachada selecionada' : 'Nenhuma imagem escolhida'}
+                          </p>
                         </div>
                       </div>
                     </div>

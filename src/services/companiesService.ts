@@ -35,7 +35,7 @@ export function companyToPlace(company: Company): Place {
     instagram: company.instagram,
     website: company.website,
     hours: company.hours || 'Segunda a Sábado: 08:00 às 18:00',
-    imageUrl: company.photoUrl || company.imageUrl || 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&auto=format&fit=crop&q=80',
+    imageUrl: company.photoUrl || company.imageUrl || '',
     logoUrl: company.logoUrl,
     isRegisteredCompany: true,
     rating: company.rating ?? 5.0,
