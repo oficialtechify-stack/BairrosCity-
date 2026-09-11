@@ -26,6 +26,7 @@ interface GoogleMapsMenuDrawerProps {
   currentUser?: UserProfile | null;
   onOpenCompanyManager?: () => void;
   onOpenResidentProfile?: () => void;
+  onOpenAdminPanel?: () => void;
 }
 
 export const GoogleMapsMenuDrawer: React.FC<GoogleMapsMenuDrawerProps> = ({
@@ -38,6 +39,7 @@ export const GoogleMapsMenuDrawer: React.FC<GoogleMapsMenuDrawerProps> = ({
   currentUser,
   onOpenCompanyManager,
   onOpenResidentProfile,
+  onOpenAdminPanel,
 }) => {
   if (!isOpen) return null;
 
@@ -91,6 +93,19 @@ export const GoogleMapsMenuDrawer: React.FC<GoogleMapsMenuDrawerProps> = ({
 
         {/* Actions list */}
         <div className="p-3 space-y-1 text-sm font-medium text-slate-700">
+          {(currentUser?.email?.toLowerCase() === 'bairroscity@gmail.com' || currentUser?.email?.toLowerCase() === 'rickmarketing81@gmail.com') && onOpenAdminPanel && (
+            <button
+              onClick={() => {
+                onOpenAdminPanel();
+                onClose();
+              }}
+              className="w-full flex items-center gap-3 p-3 rounded-xl bg-amber-50 text-amber-950 font-bold border border-amber-300 hover:bg-amber-100 transition-colors"
+            >
+              <ShieldCheck className="w-5 h-5 text-amber-600" />
+              <span>Painel Admin (Vereadores & Moradores)</span>
+            </button>
+          )}
+
           {currentUser?.role === 'empresa' && onOpenCompanyManager && (
             <button
               onClick={() => {

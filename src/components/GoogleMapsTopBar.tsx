@@ -64,6 +64,7 @@ interface GoogleMapsTopBarProps {
   onLogout: () => void;
   onOpenCompanyManager: () => void;
   onOpenResidentProfile: () => void;
+  onOpenAdminPanel?: () => void;
 }
 
 export const GoogleMapsTopBar: React.FC<GoogleMapsTopBarProps> = ({
@@ -87,6 +88,7 @@ export const GoogleMapsTopBar: React.FC<GoogleMapsTopBarProps> = ({
   onLogout,
   onOpenCompanyManager,
   onOpenResidentProfile,
+  onOpenAdminPanel,
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
@@ -606,6 +608,19 @@ export const GoogleMapsTopBar: React.FC<GoogleMapsTopBarProps> = ({
             <Users className="w-3.5 h-3.5 text-purple-600" />
             <span>BairrosCity</span>
           </button>
+
+          {/* Admin Panel Button (Restricted to bairroscity@gmail.com and test admin) */}
+          {currentUser && (currentUser.email?.toLowerCase() === 'bairroscity@gmail.com' || currentUser.email?.toLowerCase() === 'rickmarketing81@gmail.com') && onOpenAdminPanel && (
+            <button
+              type="button"
+              onClick={onOpenAdminPanel}
+              className="px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-black bg-amber-400 hover:bg-amber-300 text-slate-950 flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+              title="Painel de Administração do BairrosCity"
+            >
+              <Shield className="w-3.5 h-3.5 text-slate-950" />
+              <span>Admin</span>
+            </button>
+          )}
 
           {/* Role-Specific Button: Empresa vs Morador vs Visitante */}
           {currentUser && currentUser.role === 'empresa' ? (

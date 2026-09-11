@@ -12,6 +12,8 @@ import { BairrosCity } from './components/BairrosCity';
 import { AuthModal } from './components/AuthModal';
 import { CompanyManagerModal } from './components/CompanyManagerModal';
 import { ResidentProfileModal } from './components/ResidentProfileModal';
+import { ResidentSurveyModal } from './components/ResidentSurveyModal';
+import { AdminPanelModal } from './components/AdminPanelModal';
 import { LoginGate } from './components/LoginGate';
 import { GoogleMapsMobileNav } from './components/GoogleMapsMobileNav';
 import { useRealtimeLocation } from './hooks/useRealtimeLocation';
@@ -71,6 +73,8 @@ export default function App() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [isCompanyManagerOpen, setIsCompanyManagerOpen] = useState<boolean>(false);
   const [isResidentProfileOpen, setIsResidentProfileOpen] = useState<boolean>(false);
+  const [isResidentSurveyOpen, setIsResidentSurveyOpen] = useState<boolean>(false);
+  const [isAdminPanelOpen, setIsAdminPanelOpen] = useState<boolean>(false);
   const [activeLayer, setActiveLayer] = useState<MapLayerType>('roadmap');
 
   // Locate the place owned by the current company user if logged in
@@ -174,14 +178,18 @@ export default function App() {
     return () => unsubscribeCompanies();
   }, []);
 
-  // Requirement 2: Mandatory Redirection for Company Users
-  // Ao cadastrar um usuário como "Empresa" (role === 'company' | 'empresa'), redirecione-o obrigatoriamente para o painel da sua empresa.
-  // Se o usuário logado for uma empresa e já tiver uma empresa cadastrada, redirecione sempre para o perfil/painel da empresa dele.
+  // Requirement 2: Mandatory Redirection for Company Users vs Resident First Survey
+  // Ao cadastrar um usuário como "Empresa", redirecione-o obrigatoriamente para o painel da sua empresa.
+  // Quando um morador logar pela primeira vez, abra o questionário de validação com LGPD.
   useEffect(() => {
-    if (currentUser && (currentUser.role === 'company' || currentUser.role === 'empresa')) {
-      setIsCompanyManagerOpen(true);
+    if (currentUser) {
+      if (currentUser.role === 'company' || currentUser.role === 'empresa') {
+        setIsCompanyManagerOpen(true);
+      } else if (!currentUser.surveyCompleted) {
+        setIsResidentSurveyOpen(true);
+      }
     }
-  }, [currentUser?.id, currentUser?.role]);
+  }, [currentUser?.id, currentUser?.role, currentUser?.surveyCompleted]);
 
   // Listen to Firebase Auth state for automatic Google user session restoration
   useEffect(() => {
@@ -212,6 +220,9 @@ export default function App() {
       if (profile.role === 'company' || profile.role === 'empresa') {
         setIsCompanyManagerOpen(true);
         setGpsToast(`Conectado como ${profile.name}! Abrindo painel da empresa.`);
+      } else if (!profile.surveyCompleted) {
+        setIsResidentSurveyOpen(true);
+        setGpsToast(`Bem-vindo, ${profile.name}! Preencha a validação do seu bairro.`);
       } else {
         setGpsToast(`Conectado como ${profile.name}! Entrou no site.`);
       }
@@ -542,6 +553,8 @@ export default function App() {
             currentUser={currentUser}
             onOpenAuth={handleGoogleDirectLogin}
             onBackToHome={() => setCurrentView('map')}
+            onOpenAdminPanel={() => setIsAdminPanelOpen(true)}
+            places={places}
           />
         </div>
       )}
@@ -632,6 +645,7 @@ export default function App() {
               }}
               onOpenCompanyManager={() => setIsCompanyManagerOpen(true)}
               onOpenResidentProfile={() => setIsResidentProfileOpen(true)}
+              onOpenAdminPanel={() => setIsAdminPanelOpen(true)}
             />
           )}
 
@@ -827,6 +841,7 @@ export default function App() {
             currentUser={currentUser}
             onOpenCompanyManager={() => setIsCompanyManagerOpen(true)}
             onOpenResidentProfile={() => setIsResidentProfileOpen(true)}
+            onOpenAdminPanel={() => setIsAdminPanelOpen(true)}
           />
 
         </div>
@@ -853,9 +868,12 @@ export default function App() {
         onLoginSuccess={(user) => {
           setCurrentUser(user);
           setCurrentView('map');
-          if (user.role === 'empresa') {
+          if (user.role === 'empresa' || user.role === 'company') {
             setIsCompanyManagerOpen(true);
             setGpsToast(`Bem-vindo, ${user.name}! Abrindo painel da empresa.`);
+          } else if (!user.surveyCompleted) {
+            setIsResidentSurveyOpen(true);
+            setGpsToast(`Bem-vindo, ${user.name}! Complete o questionário do seu bairro.`);
           } else {
             setGpsToast(`Bem-vindo, ${user.name}!`);
           }
@@ -938,6 +956,36 @@ export default function App() {
             setGpsToast('Você saiu da sua conta.');
             setTimeout(() => setGpsToast(null), 2500);
           }}
+        />
+      )}
+
+      {/* Resident First-Login Questionnaire Modal (Validação Cadastral & LGPD) */}
+      {isResidentSurveyOpen && currentUser && (
+        <ResidentSurveyModal
+          isOpen={isResidentSurveyOpen}
+          onClose={() => setIsResidentSurveyOpen(false)}
+          currentUser={currentUser}
+          onSurveyCompleted={(updatedUser) => {
+            setCurrentUser(updatedUser);
+            setIsResidentSurveyOpen(false);
+            if (updatedUser.neighborhood) {
+              setBairrosInitialNeighborhood(updatedUser.neighborhood);
+            }
+            // Redireciona diretamente para o BairrosCity para exibir os habitantes e empresas do bairro dele!
+            setCurrentView('bairroscity');
+            setGpsToast(`🎉 Perfil verificado com sucesso! Bem-vindo(a) a ${updatedUser.neighborhood}!`);
+            setTimeout(() => setGpsToast(null), 4000);
+          }}
+        />
+      )}
+
+      {/* Admin Panel Modal (Exclusivo para bairroscity@gmail.com) */}
+      {isAdminPanelOpen && (
+        <AdminPanelModal
+          isOpen={isAdminPanelOpen}
+          onClose={() => setIsAdminPanelOpen(false)}
+          currentUser={currentUser}
+          initialNeighborhood={bairrosInitialNeighborhood}
         />
       )}
 

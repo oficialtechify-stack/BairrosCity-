@@ -192,5 +192,41 @@ export interface UserProfile {
   companyDetails?: CompanyDetails;
   companyPlaceId?: string;
   savedPlaceIds?: string[];
+  // Resident Questionnaire & Verification
+  age?: number | string;
+  instagram?: string;
+  cpf?: string;
+  surveyCompleted?: boolean;
+  surveyCompletedAt?: string;
+}
+
+export interface CouncilMember {
+  id: string;
+  neighborhood: string;
+  name: string;
+  party: string;
+  photoUrl?: string;
+  bio?: string;
+  phone?: string;
+  whatsapp?: string;
+  instagram?: string;
+  email?: string;
+  officeAddress?: string;
+  mandatePeriod?: string;
+  proposals?: string[];
+  updatedAt?: string;
+}
+
+export interface ResidentVerificationRecord {
+  id: string;
+  userId: string;
+  name: string;
+  email: string;
+  neighborhood: string;
+  age: number | string;
+  instagram: string;
+  cpf: string;
+  createdAt: string;
+  verifiedStatus?: 'pendente' | 'verificado' | 'arquivado';
 }
 

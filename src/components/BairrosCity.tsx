@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Users, 
   MapPin, 
@@ -16,11 +16,26 @@ import {
   Sparkles, 
   ArrowLeft,
   Share2,
-  Filter
+  Filter,
+  Landmark,
+  ShieldAlert,
+  Phone,
+  Instagram,
+  Mail,
+  Edit3,
+  ExternalLink,
+  ChevronRight
 } from 'lucide-react';
-import { NeighborhoodPost, PostType, ProblemStatus, UserProfile } from '../types';
-import { NEIGHBORHOODS } from '../data/initialPlaces';
-import { subscribeNeighborhoodPosts, createNeighborhoodPost, upvotePost, updateProblemStatus } from '../services/bairrosService';
+import { NeighborhoodPost, PostType, ProblemStatus, UserProfile, CouncilMember, Place } from '../types';
+import { NEIGHBORHOODS, NEIGHBORHOOD_POPULATION } from '../data/initialPlaces';
+import { 
+  subscribeNeighborhoodPosts, 
+  createNeighborhoodPost, 
+  upvotePost, 
+  updateProblemStatus,
+  subscribeCouncilMemberByNeighborhood,
+  subscribeNeighborhoodResidents
+} from '../services/bairrosService';
 
 interface BairrosCityProps {
   initialNeighborhood?: string;
@@ -28,6 +43,8 @@ interface BairrosCityProps {
   currentUser: UserProfile | null;
   onOpenAuth: () => void;
   onBackToHome: () => void;
+  onOpenAdminPanel?: () => void;
+  places?: Place[];
 }
 
 export const BairrosCity: React.FC<BairrosCityProps> = ({
@@ -36,13 +53,39 @@ export const BairrosCity: React.FC<BairrosCityProps> = ({
   currentUser,
   onOpenAuth,
   onBackToHome,
+  onOpenAdminPanel,
+  places = [],
 }) => {
   const [selectedNeighborhood, setSelectedNeighborhood] = useState<string>(initialNeighborhood);
-  const [activeTab, setActiveTab] = useState<'all' | 'noticia' | 'problema' | 'evento' | 'discussao'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'noticia' | 'problema' | 'evento' | 'discussao' | 'vereador'>('all');
   const [posts, setPosts] = useState<NeighborhoodPost[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [isNewPostModalOpen, setIsNewPostModalOpen] = useState<boolean>(false);
   const [searchFilter, setSearchFilter] = useState<string>('');
+
+  // Council member state
+  const [councilMember, setCouncilMember] = useState<CouncilMember | null>(null);
+  const [loadingCouncil, setLoadingCouncil] = useState<boolean>(true);
+
+  // Residents count state
+  const [residentsCountMap, setResidentsCountMap] = useState<Record<string, number>>({});
+
+  // Check admin
+  const isAdmin = 
+    currentUser?.email?.toLowerCase() === 'bairroscity@gmail.com' ||
+    currentUser?.email?.toLowerCase() === 'rickmarketing81@gmail.com';
+
+  // Count registered companies in this neighborhood
+  const companiesInNeighborhood = useMemo(() => {
+    return places.filter((p) => {
+      if (!p.neighborhood) return false;
+      const sameNeighborhood = p.neighborhood.toLowerCase().trim() === selectedNeighborhood.toLowerCase().trim();
+      return sameNeighborhood && (p.isRegisteredCompany || !p.isEvent);
+    }).length;
+  }, [places, selectedNeighborhood]);
+
+  const estimatedPopulation = NEIGHBORHOOD_POPULATION[selectedNeighborhood] || 15000;
+  const registeredResidents = residentsCountMap[selectedNeighborhood] || 0;
 
   // New post form state
   const [postType, setPostType] = useState<PostType>('noticia');
@@ -57,6 +100,24 @@ export const BairrosCity: React.FC<BairrosCityProps> = ({
   const [eventLocation, setEventLocation] = useState<string>('');
   const [imageUrl, setImageUrl] = useState<string>('');
   const [submitting, setSubmitting] = useState<boolean>(false);
+
+  // Subscribe to resident counts
+  useEffect(() => {
+    const unsubscribeResidents = subscribeNeighborhoodResidents((counts) => {
+      setResidentsCountMap(counts);
+    });
+    return () => unsubscribeResidents();
+  }, []);
+
+  // Subscribe to council member for selected neighborhood
+  useEffect(() => {
+    setLoadingCouncil(true);
+    const unsubscribeCouncil = subscribeCouncilMemberByNeighborhood(selectedNeighborhood, (member) => {
+      setCouncilMember(member);
+      setLoadingCouncil(false);
+    });
+    return () => unsubscribeCouncil();
+  }, [selectedNeighborhood]);
 
   // Subscribe to posts from Firestore
   useEffect(() => {
@@ -167,6 +228,18 @@ export const BairrosCity: React.FC<BairrosCityProps> = ({
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={onOpenAdminPanel}
+                className="px-3 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                title="Acesso restrito ao Painel de Administrador"
+              >
+                <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
+                <span>Painel Admin</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => onNavigateToMap(selectedNeighborhood)}
@@ -225,7 +298,7 @@ export const BairrosCity: React.FC<BairrosCityProps> = ({
 
       {/* Bairro Dashboard Header */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-8">
-        <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 border border-slate-800 shadow-xl mb-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 border border-slate-800 shadow-xl mb-8 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-lime-400/10 text-lime-400 border border-lime-400/30 text-xs font-bold mb-2">
               <Sparkles className="w-3.5 h-3.5" />
@@ -235,23 +308,52 @@ export const BairrosCity: React.FC<BairrosCityProps> = ({
               {selectedNeighborhood}
             </h1>
             <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-xl">
-              Espaço comunitário aberto. Fique por dentro dos avisos, reporte buracos ou problemas na
-              iluminação, e descubra os próximos eventos do {selectedNeighborhood}.
+              Espaço comunitário aberto de {selectedNeighborhood}. Fique por dentro dos avisos, reporte buracos ou problemas na
+              iluminação, e descubra os próximos eventos e o vereador que atua no seu bairro.
             </p>
           </div>
 
-          {/* Stat counters for this neighborhood */}
-          <div className="flex items-center gap-3 sm:gap-4 self-start md:self-auto">
-            <div className="px-4 py-3 rounded-2xl bg-slate-800/80 border border-slate-700/60 text-center">
-              <span className="text-xl font-black text-white">{countNoticias}</span>
+          {/* Stat counters for this neighborhood: Habitantes, Empresas, Notícias, Problemas, Eventos */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 sm:gap-3 w-full lg:w-auto">
+            {/* Habitantes */}
+            <div className="px-3.5 py-3 rounded-2xl bg-slate-800/80 border border-slate-700/60 text-center flex flex-col justify-center">
+              <div className="flex items-center justify-center gap-1 text-lime-400 mb-0.5">
+                <Users className="w-3.5 h-3.5" />
+                <span className="text-sm sm:text-base font-black text-white">
+                  {estimatedPopulation.toLocaleString('pt-BR')}
+                </span>
+              </div>
+              <span className="block text-[10px] text-slate-400 font-semibold">
+                Habitantes ({registeredResidents} no app)
+              </span>
+            </div>
+
+            {/* Empresas */}
+            <div className="px-3.5 py-3 rounded-2xl bg-slate-800/80 border border-slate-700/60 text-center flex flex-col justify-center">
+              <div className="flex items-center justify-center gap-1 text-emerald-400 mb-0.5">
+                <Building2 className="w-3.5 h-3.5" />
+                <span className="text-sm sm:text-base font-black text-white">
+                  {companiesInNeighborhood}
+                </span>
+              </div>
+              <span className="block text-[10px] text-slate-400 font-semibold">Empresas no Bairro</span>
+            </div>
+
+            {/* Notícias */}
+            <div className="px-3.5 py-3 rounded-2xl bg-slate-800/80 border border-slate-700/60 text-center flex flex-col justify-center">
+              <span className="text-sm sm:text-base font-black text-white">{countNoticias}</span>
               <span className="block text-[10px] text-slate-400 font-semibold">Notícias</span>
             </div>
-            <div className="px-4 py-3 rounded-2xl bg-slate-800/80 border border-slate-700/60 text-center">
-              <span className="text-xl font-black text-yellow-400">{countProblemas}</span>
+
+            {/* Problemas */}
+            <div className="px-3.5 py-3 rounded-2xl bg-slate-800/80 border border-slate-700/60 text-center flex flex-col justify-center">
+              <span className="text-sm sm:text-base font-black text-yellow-400">{countProblemas}</span>
               <span className="block text-[10px] text-slate-400 font-semibold">Problemas</span>
             </div>
-            <div className="px-4 py-3 rounded-2xl bg-slate-800/80 border border-slate-700/60 text-center">
-              <span className="text-xl font-black text-purple-400">{countEventos}</span>
+
+            {/* Eventos */}
+            <div className="col-span-2 sm:col-span-1 px-3.5 py-3 rounded-2xl bg-slate-800/80 border border-slate-700/60 text-center flex flex-col justify-center">
+              <span className="text-sm sm:text-base font-black text-purple-400">{countEventos}</span>
               <span className="block text-[10px] text-slate-400 font-semibold">Eventos</span>
             </div>
           </div>
@@ -261,11 +363,11 @@ export const BairrosCity: React.FC<BairrosCityProps> = ({
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           
           {/* Feed Filter Tabs */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
             <button
               type="button"
               onClick={() => setActiveTab('all')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer whitespace-nowrap ${
                 activeTab === 'all'
                   ? 'bg-lime-400 text-slate-950'
                   : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
@@ -276,7 +378,7 @@ export const BairrosCity: React.FC<BairrosCityProps> = ({
             <button
               type="button"
               onClick={() => setActiveTab('noticia')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
                 activeTab === 'noticia'
                   ? 'bg-lime-400 text-slate-950'
                   : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
@@ -288,44 +390,204 @@ export const BairrosCity: React.FC<BairrosCityProps> = ({
             <button
               type="button"
               onClick={() => setActiveTab('problema')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
                 activeTab === 'problema'
                   ? 'bg-lime-400 text-slate-950'
                   : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
               }`}
             >
               <AlertTriangle className="w-3.5 h-3.5" />
-              <span>Problemas do Bairro ({countProblemas})</span>
+              <span>Problemas ({countProblemas})</span>
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('evento')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
                 activeTab === 'evento'
                   ? 'bg-lime-400 text-slate-950'
                   : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
               }`}
             >
               <Calendar className="w-3.5 h-3.5" />
-              <span>Eventos & Feiras ({countEventos})</span>
+              <span>Eventos ({countEventos})</span>
+            </button>
+
+            {/* NEW TAB: VEREADOR DO BAIRRO */}
+            <button
+              type="button"
+              onClick={() => setActiveTab('vereador')}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                activeTab === 'vereador'
+                  ? 'bg-amber-400 text-slate-950 font-black shadow-md shadow-amber-400/20'
+                  : 'bg-slate-900 text-amber-300 hover:text-white border border-amber-500/30'
+              }`}
+            >
+              <Landmark className="w-3.5 h-3.5 text-amber-400" />
+              <span>Vereador do Bairro</span>
             </button>
           </div>
 
           {/* Search in Feed */}
-          <div className="relative w-full sm:w-64">
-            <Search className="w-4 h-4 absolute left-3 top-3 text-slate-500" />
-            <input
-              type="text"
-              value={searchFilter}
-              onChange={(e) => setSearchFilter(e.target.value)}
-              placeholder="Buscar no bairro..."
-              className="w-full pl-9 pr-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-lime-400"
-            />
-          </div>
+          {activeTab !== 'vereador' && (
+            <div className="relative w-full sm:w-64">
+              <Search className="w-4 h-4 absolute left-3 top-3 text-slate-500" />
+              <input
+                type="text"
+                value={searchFilter}
+                onChange={(e) => setSearchFilter(e.target.value)}
+                placeholder="Buscar no bairro..."
+                className="w-full pl-9 pr-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-lime-400"
+              />
+            </div>
+          )}
 
         </div>
 
-        {/* Posts Feed */}
+        {/* TAB VIEW: VEREADOR DO BAIRRO */}
+        {activeTab === 'vereador' && (
+          <div className="mb-12">
+            {loadingCouncil ? (
+              <div className="py-16 text-center text-slate-400 text-xs">
+                <div className="w-8 h-8 border-2 border-amber-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                <span>Carregando dados do vereador de {selectedNeighborhood}...</span>
+              </div>
+            ) : councilMember ? (
+              <div className="p-6 sm:p-8 rounded-3xl bg-slate-900/90 border border-slate-800 shadow-xl">
+                <div className="flex flex-col md:flex-row gap-6 lg:gap-8 items-start">
+                  
+                  {/* Foto Oficial */}
+                  <div className="shrink-0 flex flex-col items-center">
+                    {councilMember.photoUrl ? (
+                      <img
+                        src={councilMember.photoUrl}
+                        alt={councilMember.name}
+                        className="w-32 h-32 sm:w-40 sm:h-40 rounded-3xl object-cover border-2 border-amber-400/50 shadow-lg"
+                      />
+                    ) : (
+                      <div className="w-32 h-32 sm:w-40 sm:h-40 rounded-3xl bg-slate-800 border-2 border-amber-400/30 flex items-center justify-center text-amber-400 shadow-inner">
+                        <Landmark className="w-16 h-16" />
+                      </div>
+                    )}
+
+                    <span className="mt-3 px-3 py-1 rounded-full text-[11px] font-black bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                      {councilMember.party || 'Mandato Oficial'}
+                    </span>
+                  </div>
+
+                  {/* Informações */}
+                  <div className="flex-1 space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h2 className="text-xl sm:text-2xl font-black text-white">
+                            Vereador {councilMember.name}
+                          </h2>
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                            {councilMember.mandatePeriod || '2025 - 2028'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-lime-400 font-semibold mt-0.5 flex items-center gap-1">
+                          <MapPin className="w-3.5 h-3.5" />
+                          Representante e atuação em {councilMember.neighborhood}
+                        </p>
+                      </div>
+
+                      {isAdmin && onOpenAdminPanel && (
+                        <button
+                          type="button"
+                          onClick={onOpenAdminPanel}
+                          className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer self-start"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          <span>Editar Vereador no Admin</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Biografia / Atuação */}
+                    <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800/80">
+                      <h4 className="text-xs font-bold text-slate-300 mb-1.5 flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                        Atuação Comunitária e Propostas no Bairro
+                      </h4>
+                      <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-line">
+                        {councilMember.bio || 'Atuando ativamente junto às lideranças comunitárias e moradores locais na melhoria de iluminação pública, pavimentação, saneamento e postos de saúde da região.'}
+                      </p>
+                    </div>
+
+                    {/* Contatos Oficiais */}
+                    <div className="flex flex-wrap gap-2.5 pt-2">
+                      {councilMember.whatsapp && (
+                        <a
+                          href={`https://wa.me/55${councilMember.whatsapp.replace(/\D/g, '')}?text=Ol%C3%A1%20Gabinete%20do%20Vereador%2C%20sou%20morador%20de%20${encodeURIComponent(selectedNeighborhood)}%20via%20BairrosCity`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-4 py-2.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-bold flex items-center gap-2 transition-all cursor-pointer"
+                        >
+                          <Phone className="w-3.5 h-3.5" />
+                          <span>WhatsApp do Gabinete</span>
+                        </a>
+                      )}
+
+                      {councilMember.instagram && (
+                        <a
+                          href={`https://instagram.com/${councilMember.instagram.replace('@', '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-4 py-2.5 rounded-xl bg-pink-500/20 hover:bg-pink-500/30 text-pink-300 border border-pink-500/40 text-xs font-bold flex items-center gap-2 transition-all cursor-pointer"
+                        >
+                          <Instagram className="w-3.5 h-3.5" />
+                          <span>{councilMember.instagram}</span>
+                        </a>
+                      )}
+
+                      {councilMember.email && (
+                        <a
+                          href={`mailto:${councilMember.email}?subject=Contato%20Morador%20${encodeURIComponent(selectedNeighborhood)}`}
+                          className="px-4 py-2.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/40 text-xs font-bold flex items-center gap-2 transition-all cursor-pointer"
+                        >
+                          <Mail className="w-3.5 h-3.5" />
+                          <span>{councilMember.email}</span>
+                        </a>
+                      )}
+                    </div>
+
+                  </div>
+
+                </div>
+              </div>
+            ) : (
+              <div className="p-8 sm:p-12 rounded-3xl bg-slate-900/60 border border-slate-800 text-center max-w-xl mx-auto">
+                <div className="w-16 h-16 rounded-2xl bg-amber-400/10 text-amber-400 mx-auto flex items-center justify-center mb-4">
+                  <Landmark className="w-8 h-8" />
+                </div>
+                <h3 className="text-lg font-bold text-white">Nenhum vereador cadastrado para {selectedNeighborhood}</h3>
+                <p className="text-xs text-slate-400 mt-2 max-w-md mx-auto">
+                  A área administrativa do BairrosCity realiza o cadastramento oficial dos representantes municipais atuantes em cada comunidade.
+                </p>
+
+                {isAdmin && onOpenAdminPanel ? (
+                  <button
+                    type="button"
+                    onClick={onOpenAdminPanel}
+                    className="mt-6 px-6 py-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs transition-all inline-flex items-center gap-2 cursor-pointer shadow-lg shadow-amber-400/20"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Cadastrar Vereador de {selectedNeighborhood} no Admin</span>
+                  </button>
+                ) : (
+                  <p className="text-[11px] text-slate-500 mt-4">
+                    Se você é vereador ou membro do gabinete desta região, entre em contato com a administração.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Posts Feed (quando não estiver na aba vereador) */}
+        {activeTab !== 'vereador' && (
+          <>
         {loading ? (
           <div className="py-20 text-center text-slate-400 text-xs">
             <div className="w-8 h-8 border-2 border-lime-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
@@ -483,6 +745,8 @@ export const BairrosCity: React.FC<BairrosCityProps> = ({
               );
             })}
           </div>
+        )}
+        </>
         )}
 
       </div>
