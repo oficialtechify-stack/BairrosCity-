@@ -13,7 +13,7 @@ import {
   updateDoc,
   increment
 } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { db, sanitizeFirestoreData } from '../lib/firebase';
 import { Place, Review } from '../types';
 
 const PLACES_COLLECTION = 'places';
@@ -139,9 +139,16 @@ export function subscribePlaces(callback: (places: Place[]) => void) {
 // Add a new company to Firestore
 export async function createPlaceInFirestore(placeData: Omit<Place, 'id' | 'rating' | 'reviewsCount' | 'reviews' | 'createdAt'>): Promise<string> {
   const newPlaceRef = doc(collection(db, PLACES_COLLECTION));
-  const newPlace = {
+  const newPlace = sanitizeFirestoreData({
     ...placeData,
     id: newPlaceRef.id,
+    phone: placeData.phone || '',
+    whatsapp: placeData.whatsapp || '',
+    instagram: placeData.instagram || '',
+    website: placeData.website || '',
+    logoUrl: placeData.logoUrl || '',
+    photoUrl: placeData.imageUrl || placeData.photoUrl || '',
+    imageUrl: placeData.imageUrl || placeData.photoUrl || '',
     rating: 5.0,
     reviewsCount: 1,
     reviews: [
@@ -159,7 +166,7 @@ export async function createPlaceInFirestore(placeData: Omit<Place, 'id' | 'rati
     isPaused: false,
     createdAt: new Date().toISOString(),
     serverCreatedAt: serverTimestamp(),
-  };
+  });
 
   try {
     await setDoc(newPlaceRef, newPlace);
@@ -187,10 +194,11 @@ export async function createPlaceInFirestore(placeData: Omit<Place, 'id' | 'rati
 // Update existing company details
 export async function updatePlaceInFirestore(placeId: string, updates: Partial<Place>): Promise<void> {
   const placeRef = doc(db, PLACES_COLLECTION, placeId);
-  await updateDoc(placeRef, {
+  const cleanUpdates = sanitizeFirestoreData({
     ...updates,
     updatedAt: new Date().toISOString(),
   });
+  await updateDoc(placeRef, cleanUpdates);
 }
 
 // Delete company from Firestore

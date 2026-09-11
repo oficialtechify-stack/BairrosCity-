@@ -9,6 +9,7 @@ import {
   query,
   where,
   orderBy,
+  sanitizeFirestoreData,
 } from '../lib/firebase';
 import { Company, Place, CategoryType } from '../types';
 
@@ -20,30 +21,31 @@ export const COMPANIES_COLLECTION = 'companies';
 export function companyToPlace(company: Company): Place {
   return {
     id: company.id,
-    name: company.name,
+    name: company.name || 'Empresa',
     category: (company.category as CategoryType) || 'services',
     subCategory: company.subCategory || company.category || 'Empresa Local',
-    customCategory: company.customCategory,
+    customCategory: company.customCategory || '',
     description: company.description || '',
     address: company.address || '',
     neighborhood: company.neighborhood || 'Curado IV',
     city: company.city || 'Recife',
-    lat: Number(company.lat),
-    lng: Number(company.lng),
-    phone: company.phone,
-    whatsapp: company.whatsapp,
-    instagram: company.instagram,
-    website: company.website,
+    lat: typeof company.lat === 'number' ? company.lat : parseFloat(String(company.lat)) || -8.0645,
+    lng: typeof company.lng === 'number' ? company.lng : parseFloat(String(company.lng)) || -34.9855,
+    phone: company.phone || '',
+    whatsapp: company.whatsapp || '',
+    instagram: company.instagram || '',
+    website: company.website || '',
     hours: company.hours || 'Segunda a Sábado: 08:00 às 18:00',
     imageUrl: company.photoUrl || company.imageUrl || '',
-    logoUrl: company.logoUrl,
+    photoUrl: company.photoUrl || company.imageUrl || '',
+    logoUrl: company.logoUrl || '',
     isRegisteredCompany: true,
     rating: company.rating ?? 5.0,
     reviewsCount: company.reviewsCount ?? 1,
     reviews: company.reviews ?? [],
-    tags: [company.category, company.neighborhood].filter(Boolean),
+    tags: [company.category, company.neighborhood].filter(Boolean) as string[],
     createdAt: company.createdAt || new Date().toISOString(),
-    ownerId: company.userId,
+    ownerId: company.userId || '',
     isPaused: company.isPaused ?? false,
     viewsCount: company.viewsCount ?? 12,
     whatsappClicks: company.whatsappClicks ?? 0,
@@ -72,9 +74,10 @@ export function placeToCompany(place: Partial<Place>, userId: string): Partial<C
     website: place.website || '',
     description: place.description || '',
     logoUrl: place.logoUrl || '',
-    photoUrl: place.imageUrl || '',
-    subCategory: place.subCategory,
-    customCategory: place.customCategory,
+    photoUrl: place.imageUrl || place.photoUrl || '',
+    imageUrl: place.imageUrl || place.photoUrl || '',
+    subCategory: place.subCategory || '',
+    customCategory: place.customCategory || '',
     productsOrServices: place.productsOrServices || [],
     isPaused: place.isPaused ?? false,
     viewsCount: place.viewsCount ?? 0,
@@ -219,19 +222,20 @@ export async function saveCompanyToFirestore(
     payload.createdAt = now;
   }
 
-  // Save to `companies` collection using setDoc with merge: true
+  // Save to `companies` collection using setDoc with merge: true (sem nenhum campo undefined)
   const compDocRef = doc(db, COMPANIES_COLLECTION, companyId);
-  await setDoc(compDocRef, payload, { merge: true });
+  const cleanPayload = sanitizeFirestoreData(payload);
+  await setDoc(compDocRef, cleanPayload, { merge: true });
   console.log(`[Firestore] Company successfully saved in 'companies/${companyId}' with merge: true!`);
 
   // Also sync to `places` collection for full backward compatibility across all modules
   try {
-    const placePayload = companyToPlace(payload as Company);
+    const placePayload = sanitizeFirestoreData(companyToPlace(cleanPayload as Company));
     await setDoc(doc(db, 'places', companyId), placePayload, { merge: true });
     console.log(`[Firestore] Mirrored company to 'places/${companyId}'`);
   } catch (placeSyncErr) {
     console.warn('[Firestore] Note: places mirror sync notice:', placeSyncErr);
   }
 
-  return payload as Company;
+  return cleanPayload as Company;
 }

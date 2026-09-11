@@ -55,6 +55,32 @@ export const db = getFirestore(app);
 export const storage = getStorage(app);
 export const auth = getAuth(app);
 
+/**
+ * Sanitiza recursivamente objetos antes de enviar para o Firestore.
+ * Remove quaisquer chaves com valor 'undefined' (que causam exceção crítica no setDoc/updateDoc)
+ * e garante que campos aninhados e arrays sejam seguros.
+ */
+export function sanitizeFirestoreData<T extends Record<string, any>>(obj: T): T {
+  if (!obj || typeof obj !== 'object') {
+    return obj;
+  }
+  const clean: any = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value === undefined) {
+      continue; // Ignora chaves com valor undefined
+    } else if (value !== null && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
+      clean[key] = sanitizeFirestoreData(value);
+    } else if (Array.isArray(value)) {
+      clean[key] = value.map((item) =>
+        item !== null && typeof item === 'object' ? sanitizeFirestoreData(item) : (item === undefined ? null : item)
+      );
+    } else {
+      clean[key] = value;
+    }
+  }
+  return clean;
+}
+
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: "select_account" });
 

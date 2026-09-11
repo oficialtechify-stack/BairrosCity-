@@ -58,6 +58,7 @@ export interface Place {
   website?: string;
   hours?: string;
   imageUrl: string;
+  photoUrl?: string;
   logoUrl?: string;
   isRegisteredCompany?: boolean;
   rating: number; // Average 1.0 to 5.0

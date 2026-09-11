@@ -40,7 +40,7 @@ import {
 import { updateUserProfile, loginWithGoogle } from '../services/authService';
 import { uploadCompanyImage } from '../services/storageService';
 import { saveCompanyToFirestore } from '../services/companiesService';
-import { db, doc, setDoc, auth } from '../lib/firebase';
+import { db, doc, setDoc, auth, sanitizeFirestoreData } from '../lib/firebase';
 
 const cleanInitialImage = (url?: string | null): string => {
   if (!url) return '';
@@ -328,15 +328,28 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
       
       const publicUrl = await uploadCompanyImage(activeUserId, file);
       
+      if (!publicUrl) {
+        throw new Error('Não foi possível obter a imagem da galeria.');
+      }
+
       if (target === 'logo') {
         setLogoUrl(publicUrl);
         if (companyPlace) {
-          await saveCompanyToFirestore(activeUserId, { logoUrl: publicUrl }, companyPlace.id);
+          await saveCompanyToFirestore(activeUserId, {
+            ...companyPlace,
+            logoUrl: publicUrl,
+          }, companyPlace.id);
+          onPlaceUpdated({ ...companyPlace, logoUrl: publicUrl });
         }
       } else if (target === 'image') {
         setImageUrl(publicUrl);
         if (companyPlace) {
-          await saveCompanyToFirestore(activeUserId, { photoUrl: publicUrl, imageUrl: publicUrl }, companyPlace.id);
+          await saveCompanyToFirestore(activeUserId, {
+            ...companyPlace,
+            photoUrl: publicUrl,
+            imageUrl: publicUrl,
+          }, companyPlace.id);
+          onPlaceUpdated({ ...companyPlace, photoUrl: publicUrl, imageUrl: publicUrl });
         }
       } else if (target === 'prod') {
         setNewProdImage(publicUrl);
@@ -346,12 +359,12 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
         setRegImageUrl(publicUrl);
       }
 
-      setSuccessMsg('📸 Foto da galeria carregada com sucesso!');
+      setSuccessMsg('📸 Foto da galeria carregada e salva com sucesso!');
       setTimeout(() => setSuccessMsg(''), 3500);
     } catch (err: any) {
       console.error('Error handling gallery file:', err);
       const msg = err?.message || 'Falha ao processar arquivo da galeria.';
-      setErrorMsg(`Erro no envio: ${msg}`);
+      setErrorMsg(`Erro no envio da foto: ${msg}`);
     } finally {
       setUploadingTarget(null);
       if (e.target) {
@@ -405,8 +418,9 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
         initialProducts.push({
           id: `prod-${Date.now()}`,
           name: regFirstProdName.trim(),
-          price: regFirstProdPrice.trim() || undefined,
+          price: regFirstProdPrice.trim() || '',
           description: 'Item inicial cadastrado',
+          imageUrl: '',
         });
       }
 
@@ -421,7 +435,7 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
       const savedCompany = await saveCompanyToFirestore(activeUserId, {
         name: regName.trim(),
         category: regCategory,
-        customCategory: regCategory === 'other' && regCustomCategory.trim() ? regCustomCategory.trim() : undefined,
+        customCategory: regCategory === 'other' && regCustomCategory.trim() ? regCustomCategory.trim() : '',
         subCategory: regSubCategory.trim() || finalCategoryLabel,
         description: regDescription.trim() || 'Empresa verificada no bairro com atendimento de excelência.',
         address: regAddress.trim(),
@@ -429,12 +443,14 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
         city: regCity.trim() || 'Recife',
         lat: regLat,
         lng: regLng,
-        whatsapp: regWhatsapp.trim() || undefined,
-        phone: regPhone.trim() || undefined,
-        instagram: regInstagram.trim() || undefined,
-        hours: regHours.trim() || undefined,
-        photoUrl: finalImage,
-        logoUrl: finalLogo,
+        whatsapp: regWhatsapp.trim() || '',
+        phone: regPhone.trim() || '',
+        instagram: regInstagram.trim() || '',
+        website: '',
+        hours: regHours.trim() || '',
+        photoUrl: finalImage || '',
+        imageUrl: finalImage || '',
+        logoUrl: finalLogo || '',
         productsOrServices: initialProducts,
       });
 
@@ -532,46 +548,51 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
       const companyData = {
         id: companyId,
         userId: activeUserId,
-        name: name.trim(),
-        category,
-        customCategory: category === 'other' && customCategory.trim() ? customCategory.trim() : null,
-        subCategory: subCategory.trim() || finalCategoryLabel,
-        address: address.trim(),
-        neighborhood,
-        city: city.trim(),
-        lat: companyPlace.lat || -8.0645,
-        lng: companyPlace.lng || -34.9855,
+        name: name.trim() || 'Empresa Sem Nome',
+        category: category || 'services',
+        customCategory: category === 'other' && customCategory.trim() ? customCategory.trim() : '',
+        subCategory: subCategory.trim() || finalCategoryLabel || '',
+        address: address.trim() || '',
+        neighborhood: neighborhood || 'Curado IV',
+        city: city.trim() || 'Recife',
+        lat: typeof companyPlace.lat === 'number' ? companyPlace.lat : parseFloat(String(companyPlace.lat)) || -8.0645,
+        lng: typeof companyPlace.lng === 'number' ? companyPlace.lng : parseFloat(String(companyPlace.lng)) || -34.9855,
         phone: phone.trim() || '',
         whatsapp: whatsapp.trim() || '',
         hours: hours.trim() || '',
-        description: description.trim(),
-        imageUrl: cleanInitialImage(imageUrl.trim()),
-        photoUrl: cleanInitialImage(imageUrl.trim()),
-        logoUrl: cleanInitialImage(logoUrl.trim()),
+        description: description.trim() || '',
+        imageUrl: cleanInitialImage(imageUrl.trim()) || '',
+        photoUrl: cleanInitialImage(imageUrl.trim()) || '',
+        logoUrl: cleanInitialImage(logoUrl.trim()) || '',
         instagram: instagram.trim() || '',
         website: website.trim() || '',
-        isPaused,
-        priceRange,
-        productsOrServices: products,
+        isPaused: Boolean(isPaused),
+        priceRange: priceRange || '$$',
+        productsOrServices: products || [],
         updatedAt: new Date().toISOString(),
       };
 
+      const cleanCompanyData = sanitizeFirestoreData(companyData);
+
       // 1. Direct Firestore setDoc with merge: true on `companies` collection
-      await setDoc(doc(db, 'companies', companyId), companyData, { merge: true });
+      await setDoc(doc(db, 'companies', companyId), cleanCompanyData, { merge: true });
       console.log(`[Firestore] Updated companies/${companyId} with merge: true`);
 
       // 2. Direct Firestore setDoc with merge: true on `places` collection for map compatibility
       const placeUpdates: Partial<Place> = {
-        ...companyData,
-        customCategory: companyData.customCategory || undefined,
-        phone: companyData.phone || undefined,
-        whatsapp: companyData.whatsapp || undefined,
-        hours: companyData.hours || undefined,
-        logoUrl: companyData.logoUrl || undefined,
-        instagram: companyData.instagram || undefined,
-        website: companyData.website || undefined,
+        ...cleanCompanyData,
+        customCategory: cleanCompanyData.customCategory || '',
+        phone: cleanCompanyData.phone || '',
+        whatsapp: cleanCompanyData.whatsapp || '',
+        hours: cleanCompanyData.hours || '',
+        logoUrl: cleanCompanyData.logoUrl || '',
+        photoUrl: cleanCompanyData.photoUrl || '',
+        imageUrl: cleanCompanyData.imageUrl || '',
+        instagram: cleanCompanyData.instagram || '',
+        website: cleanCompanyData.website || '',
       };
-      await setDoc(doc(db, 'places', companyId), placeUpdates, { merge: true });
+      const cleanPlaceUpdates = sanitizeFirestoreData(placeUpdates);
+      await setDoc(doc(db, 'places', companyId), cleanPlaceUpdates, { merge: true });
 
       if (currentUser && name.trim() !== currentUser.companyName) {
         await updateUserProfile(currentUser.id, { companyName: name.trim() });
@@ -606,9 +627,9 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
     const item: ProductItem = {
       id: `prod-${Date.now()}`,
       name: newProdName.trim(),
-      price: newProdPrice.trim() || undefined,
-      description: newProdDesc.trim() || undefined,
-      imageUrl: newProdImage.trim() || undefined,
+      price: newProdPrice.trim() || '',
+      description: newProdDesc.trim() || '',
+      imageUrl: newProdImage.trim() || '',
     };
 
     const updatedList = [...products, item];
