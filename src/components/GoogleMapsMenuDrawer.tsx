@@ -14,7 +14,8 @@ import {
   Building2,
   User,
   LogOut,
-  LogIn
+  LogIn,
+  CalendarPlus
 } from 'lucide-react';
 import { UserProfile } from '../types';
 
@@ -143,10 +144,10 @@ export const GoogleMapsMenuDrawer: React.FC<GoogleMapsMenuDrawerProps> = ({
               onOpenRegister();
               onClose();
             }}
-            className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-blue-50 text-blue-700 font-bold transition-colors"
+            className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-purple-50 text-purple-700 font-bold transition-colors"
           >
-            <PlusCircle className="w-5 h-5 text-blue-600" />
-            <span>Cadastrar Empresa ou Evento</span>
+            <CalendarPlus className="w-5 h-5 text-purple-600" />
+            <span>Registrar Eventos no Bairro</span>
           </button>
 
           <button

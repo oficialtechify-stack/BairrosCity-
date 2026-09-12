@@ -56,7 +56,21 @@ export const BairrosCity: React.FC<BairrosCityProps> = ({
   onOpenAdminPanel,
   places = [],
 }) => {
-  const [selectedNeighborhood, setSelectedNeighborhood] = useState<string>(initialNeighborhood);
+  // User neighborhood enforcement:
+  // If user is a resident with a linked neighborhood, lock strictly to their neighborhood
+  const userNeighborhood = currentUser?.neighborhood?.trim();
+  const isLockedToNeighborhood = Boolean(userNeighborhood && currentUser?.role === 'morador');
+
+  const [selectedNeighborhood, setSelectedNeighborhood] = useState<string>(
+    (isLockedToNeighborhood && userNeighborhood) ? userNeighborhood : initialNeighborhood
+  );
+
+  useEffect(() => {
+    if (isLockedToNeighborhood && userNeighborhood && selectedNeighborhood !== userNeighborhood) {
+      setSelectedNeighborhood(userNeighborhood);
+    }
+  }, [isLockedToNeighborhood, userNeighborhood, selectedNeighborhood]);
+
   const [activeTab, setActiveTab] = useState<'all' | 'noticia' | 'problema' | 'evento' | 'discussao' | 'vereador'>('all');
   const [posts, setPosts] = useState<NeighborhoodPost[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -122,13 +136,14 @@ export const BairrosCity: React.FC<BairrosCityProps> = ({
   // Subscribe to posts from Firestore
   useEffect(() => {
     setLoading(true);
-    const unsubscribe = subscribeNeighborhoodPosts(selectedNeighborhood, (fetchedPosts) => {
+    const activeNeighborhood = (isLockedToNeighborhood && userNeighborhood) ? userNeighborhood : selectedNeighborhood;
+    const unsubscribe = subscribeNeighborhoodPosts(activeNeighborhood, (fetchedPosts) => {
       setPosts(fetchedPosts);
       setLoading(false);
     });
 
     return () => unsubscribe();
-  }, [selectedNeighborhood]);
+  }, [selectedNeighborhood, isLockedToNeighborhood, userNeighborhood]);
 
   const filteredPosts = posts.filter((p) => {
     if (activeTab !== 'all' && p.type !== activeTab) return false;
@@ -148,13 +163,14 @@ export const BairrosCity: React.FC<BairrosCityProps> = ({
     if (!postTitle.trim() || !postContent.trim()) return;
 
     setSubmitting(true);
+    const targetNeighborhood = (isLockedToNeighborhood && userNeighborhood) ? userNeighborhood : selectedNeighborhood;
     try {
       await createNeighborhoodPost({
-        neighborhood: selectedNeighborhood,
+        neighborhood: targetNeighborhood,
         type: postType,
         title: postTitle.trim(),
         content: postContent.trim(),
-        author: authorName.trim() || 'Morador Anônimo',
+        author: authorName.trim() || currentUser?.name || 'Morador Local',
         authorRole: authorRole.trim() || 'Morador Local',
         status: postType === 'problema' ? 'aberto' : undefined,
         eventDate: postType === 'evento' ? eventDate : undefined,
@@ -204,46 +220,46 @@ export const BairrosCity: React.FC<BairrosCityProps> = ({
       
       {/* Top Navigation */}
       <header className="sticky top-0 z-40 border-b border-slate-800 bg-[#070b12]/95 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <button
               type="button"
               onClick={onBackToHome}
-              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
+              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer shrink-0"
               title="Voltar para o Mapa"
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-black text-white text-base tracking-wide">BAIRROSCITY</span>
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-lime-400/20 text-lime-400 border border-lime-400/30">
-                  COMUNIDADE REGIONAL
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <span className="font-black text-white text-sm sm:text-base tracking-wide truncate">BAIRROSCITY</span>
+                <span className="text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded bg-lime-400/20 text-lime-400 border border-lime-400/30 shrink-0">
+                  {isLockedToNeighborhood ? selectedNeighborhood : 'REGIONAL'}
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[10px] sm:text-[11px] text-slate-400 truncate hidden xs:block">
                 Notícias, problemas e eventos por bairro
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             {isAdmin && (
               <button
                 type="button"
                 onClick={onOpenAdminPanel}
-                className="px-3 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                className="px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
                 title="Acesso restrito ao Painel de Administrador"
               >
                 <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
-                <span>Painel Admin</span>
+                <span className="hidden sm:inline">Painel Admin</span>
               </button>
             )}
 
             <button
               type="button"
               onClick={() => onNavigateToMap(selectedNeighborhood)}
-              className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+              className="px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
             >
               <MapPin className="w-3.5 h-3.5 text-lime-400" />
               <span className="hidden sm:inline">Ver no Mapa</span>
@@ -252,109 +268,136 @@ export const BairrosCity: React.FC<BairrosCityProps> = ({
             <button
               type="button"
               onClick={() => setIsNewPostModalOpen(true)}
-              className="px-3.5 py-2 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 text-xs font-black flex items-center gap-1.5 transition-all shadow-md shadow-lime-400/20 cursor-pointer"
+              className="px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 text-xs font-black flex items-center gap-1.5 transition-all shadow-md shadow-lime-400/20 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>Publicar no Bairro</span>
+              <span className="hidden xs:inline">Publicar</span>
+              <span className="xs:hidden">Postar</span>
             </button>
           </div>
         </div>
       </header>
 
       {/* Neighborhood Selector Bar */}
-      <div className="border-b border-slate-800/80 bg-slate-950/80 py-4 px-4 sm:px-6">
+      <div className="border-b border-slate-800/80 bg-slate-950/80 py-3.5 px-3 sm:px-6">
         <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between gap-4 mb-3">
-            <span className="text-xs font-bold text-slate-400 flex items-center gap-1.5">
-              <MapPin className="w-3.5 h-3.5 text-lime-400" />
-              ESCOLHA SEU BAIRRO:
-            </span>
-
-            <div className="text-xs text-lime-400 font-semibold">
-              Bairro Ativo: <span className="font-bold underline text-white">{selectedNeighborhood}</span>
+          {isLockedToNeighborhood ? (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 sm:p-3.5 rounded-2xl bg-slate-900/90 border border-lime-500/30">
+              <div className="flex items-center gap-2.5 sm:gap-3">
+                <div className="w-9 h-9 rounded-xl bg-lime-400/20 text-lime-400 flex items-center justify-center font-bold shrink-0">
+                  <MapPin className="w-4 h-4 sm:w-5 sm:h-5" />
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                    <span className="text-xs text-slate-300 font-medium">Bairro Vinculado ao seu Perfil:</span>
+                    <span className="text-xs font-black text-lime-400 uppercase tracking-wide bg-lime-400/10 px-2 py-0.5 rounded-full border border-lime-400/30">
+                      {selectedNeighborhood}
+                    </span>
+                    <span className="text-[10px] text-emerald-400 font-bold bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-800/60">
+                      Morador Exclusivo
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Como morador registrado, você visualiza e publica exclusivamente no feed do <strong>{selectedNeighborhood}</strong>.
+                  </p>
+                </div>
+              </div>
             </div>
-          </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between gap-4 mb-2.5">
+                <span className="text-xs font-bold text-slate-400 flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-lime-400" />
+                  ESCOLHA SEU BAIRRO:
+                </span>
 
-          {/* Neighborhood Pills */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
-            {NEIGHBORHOODS.map((neighborhood) => (
-              <button
-                key={neighborhood}
-                type="button"
-                onClick={() => setSelectedNeighborhood(neighborhood)}
-                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
-                  selectedNeighborhood === neighborhood
-                    ? 'bg-lime-400 text-slate-950 shadow-md shadow-lime-400/20 scale-105'
-                    : 'bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-800'
-                }`}
-              >
-                <MapPin className="w-3 h-3" />
-                <span>{neighborhood}</span>
-              </button>
-            ))}
-          </div>
+                <div className="text-xs text-lime-400 font-semibold">
+                  Bairro Ativo: <span className="font-bold underline text-white">{selectedNeighborhood}</span>
+                </div>
+              </div>
+
+              {/* Neighborhood Pills */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+                {NEIGHBORHOODS.map((neighborhood) => (
+                  <button
+                    key={neighborhood}
+                    type="button"
+                    onClick={() => setSelectedNeighborhood(neighborhood)}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+                      selectedNeighborhood === neighborhood
+                        ? 'bg-lime-400 text-slate-950 shadow-md shadow-lime-400/20 scale-105'
+                        : 'bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-800'
+                    }`}
+                  >
+                    <MapPin className="w-3 h-3" />
+                    <span>{neighborhood}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </div>
 
       {/* Bairro Dashboard Header */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-8">
-        <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 border border-slate-800 shadow-xl mb-8 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 pt-4 sm:pt-8">
+        <div className="p-4 sm:p-8 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 border border-slate-800 shadow-xl mb-6 sm:mb-8 flex flex-col lg:flex-row lg:items-center justify-between gap-5 sm:gap-6">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-lime-400/10 text-lime-400 border border-lime-400/30 text-xs font-bold mb-2">
+            <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-lime-400/10 text-lime-400 border border-lime-400/30 text-[11px] font-bold mb-2">
               <Sparkles className="w-3.5 h-3.5" />
               <span>PAINEL COMUNITÁRIO DO BAIRRO</span>
             </div>
             <h1 className="text-2xl sm:text-4xl font-black text-white tracking-tight">
               {selectedNeighborhood}
             </h1>
-            <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-xl">
-              Espaço comunitário aberto de {selectedNeighborhood}. Fique por dentro dos avisos, reporte buracos ou problemas na
-              iluminação, e descubra os próximos eventos e o vereador que atua no seu bairro.
+            <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-xl leading-relaxed">
+              Espaço comunitário oficial de {selectedNeighborhood}. Acompanhe avisos e notícias, reporte buracos ou problemas na
+              iluminação, e descubra os próximos eventos no seu bairro.
             </p>
           </div>
 
-          {/* Stat counters for this neighborhood: Habitantes, Empresas, Notícias, Problemas, Eventos */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 sm:gap-3 w-full lg:w-auto">
+          {/* Stat counters for this neighborhood: Habitantes, Comércios, Notícias, Problemas, Eventos */}
+          <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 sm:gap-3 w-full lg:w-auto">
             {/* Habitantes */}
-            <div className="px-3.5 py-3 rounded-2xl bg-slate-800/80 border border-slate-700/60 text-center flex flex-col justify-center">
+            <div className="px-2.5 sm:px-3.5 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl bg-slate-800/80 border border-slate-700/60 text-center flex flex-col justify-center">
               <div className="flex items-center justify-center gap-1 text-lime-400 mb-0.5">
                 <Users className="w-3.5 h-3.5" />
-                <span className="text-sm sm:text-base font-black text-white">
+                <span className="text-xs sm:text-base font-black text-white">
                   {estimatedPopulation.toLocaleString('pt-BR')}
                 </span>
               </div>
-              <span className="block text-[10px] text-slate-400 font-semibold">
-                Habitantes ({registeredResidents} no app)
+              <span className="block text-[9px] sm:text-[10px] text-slate-400 font-semibold truncate">
+                Habitantes
               </span>
             </div>
 
-            {/* Empresas */}
-            <div className="px-3.5 py-3 rounded-2xl bg-slate-800/80 border border-slate-700/60 text-center flex flex-col justify-center">
+            {/* Empresas / Comércios */}
+            <div className="px-2.5 sm:px-3.5 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl bg-slate-800/80 border border-slate-700/60 text-center flex flex-col justify-center">
               <div className="flex items-center justify-center gap-1 text-emerald-400 mb-0.5">
                 <Building2 className="w-3.5 h-3.5" />
-                <span className="text-sm sm:text-base font-black text-white">
+                <span className="text-xs sm:text-base font-black text-white">
                   {companiesInNeighborhood}
                 </span>
               </div>
-              <span className="block text-[10px] text-slate-400 font-semibold">Empresas no Bairro</span>
+              <span className="block text-[9px] sm:text-[10px] text-slate-400 font-semibold truncate">Comércios</span>
             </div>
 
             {/* Notícias */}
-            <div className="px-3.5 py-3 rounded-2xl bg-slate-800/80 border border-slate-700/60 text-center flex flex-col justify-center">
-              <span className="text-sm sm:text-base font-black text-white">{countNoticias}</span>
-              <span className="block text-[10px] text-slate-400 font-semibold">Notícias</span>
+            <div className="px-2.5 sm:px-3.5 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl bg-slate-800/80 border border-slate-700/60 text-center flex flex-col justify-center">
+              <span className="text-xs sm:text-base font-black text-white">{countNoticias}</span>
+              <span className="block text-[9px] sm:text-[10px] text-slate-400 font-semibold truncate">Notícias</span>
             </div>
 
             {/* Problemas */}
-            <div className="px-3.5 py-3 rounded-2xl bg-slate-800/80 border border-slate-700/60 text-center flex flex-col justify-center">
-              <span className="text-sm sm:text-base font-black text-yellow-400">{countProblemas}</span>
-              <span className="block text-[10px] text-slate-400 font-semibold">Problemas</span>
+            <div className="px-2.5 sm:px-3.5 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl bg-slate-800/80 border border-slate-700/60 text-center flex flex-col justify-center">
+              <span className="text-xs sm:text-base font-black text-yellow-400">{countProblemas}</span>
+              <span className="block text-[9px] sm:text-[10px] text-slate-400 font-semibold truncate">Problemas</span>
             </div>
 
             {/* Eventos */}
-            <div className="col-span-2 sm:col-span-1 px-3.5 py-3 rounded-2xl bg-slate-800/80 border border-slate-700/60 text-center flex flex-col justify-center">
-              <span className="text-sm sm:text-base font-black text-purple-400">{countEventos}</span>
-              <span className="block text-[10px] text-slate-400 font-semibold">Eventos</span>
+            <div className="col-span-2 sm:col-span-1 px-2.5 sm:px-3.5 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl bg-slate-800/80 border border-slate-700/60 text-center flex flex-col justify-center">
+              <span className="text-xs sm:text-base font-black text-purple-400">{countEventos}</span>
+              <span className="block text-[9px] sm:text-[10px] text-slate-400 font-semibold truncate">Eventos</span>
             </div>
           </div>
         </div>

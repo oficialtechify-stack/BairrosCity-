@@ -406,7 +406,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                   <span className="w-2.5 h-2.5 rounded-full bg-purple-400 animate-pulse" />
                   <span className="text-xs font-bold text-purple-300">Publicação de Evento / Feira / Lazer Comunitário</span>
                 </div>
-                {onOpenCompanyManager && (
+                {(currentUser.role === 'empresa' || currentUser.role === 'company') && onOpenCompanyManager && (
                   <button
                     type="button"
                     onClick={() => {
@@ -416,7 +416,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                     className="text-[11px] text-lime-400 hover:text-lime-300 font-bold flex items-center gap-1 cursor-pointer transition-colors"
                   >
                     <Building2 className="w-3.5 h-3.5" />
-                    <span>Cadastrar Empresa Fixa?</span>
+                    <span>Painel da Empresa</span>
                   </button>
                 )}
               </div>

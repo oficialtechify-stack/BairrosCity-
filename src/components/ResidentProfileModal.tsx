@@ -7,14 +7,12 @@ import {
   Star,
   Building2,
   LogOut,
-  Sparkles,
-  ArrowRight,
+  CalendarPlus,
   ShieldCheck,
   CheckCircle,
-  Heart
+  Calendar
 } from 'lucide-react';
 import { UserProfile, Place } from '../types';
-import { updateUserRole } from '../services/authService';
 
 interface ResidentProfileModalProps {
   isOpen: boolean;
@@ -23,7 +21,8 @@ interface ResidentProfileModalProps {
   savedPlaces: Place[];
   onSelectPlace: (place: Place) => void;
   onLogout: () => void;
-  onSwitchToCompany: () => void;
+  onSwitchToCompany?: () => void;
+  onOpenRegisterEvent?: () => void;
 }
 
 export const ResidentProfileModal: React.FC<ResidentProfileModalProps> = ({
@@ -34,24 +33,9 @@ export const ResidentProfileModal: React.FC<ResidentProfileModalProps> = ({
   onSelectPlace,
   onLogout,
   onSwitchToCompany,
+  onOpenRegisterEvent,
 }) => {
   const [activeTab, setActiveTab] = useState<'favorites' | 'account'>('favorites');
-  const [switching, setSwitching] = useState(false);
-
-  const handleUpgradeToCompany = async () => {
-    if (!currentUser) return;
-    setSwitching(true);
-    try {
-      await updateUserRole(currentUser.id, 'empresa', 'Minha Empresa');
-      onSwitchToCompany();
-      onClose();
-    } catch (e) {
-      console.error(e);
-      alert('Erro ao atualizar perfil. Tente novamente.');
-    } finally {
-      setSwitching(false);
-    }
-  };
 
   if (!isOpen || !currentUser) return null;
 
@@ -200,31 +184,34 @@ export const ResidentProfileModal: React.FC<ResidentProfileModalProps> = ({
                 </p>
               </div>
 
-              {/* Company upgrade card */}
-              <div className="p-4 rounded-2xl bg-gradient-to-br from-indigo-950/60 to-purple-950/60 border border-indigo-700/50 space-y-3">
-                <div className="flex items-center gap-2 text-xs font-bold text-indigo-300">
-                  <Building2 className="w-4 h-4 text-lime-400" />
-                  <span>Você tem um negócio ou presta serviços?</span>
+              {/* Event Registration Card */}
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-purple-950/70 to-slate-900 border border-purple-700/50 space-y-3">
+                <div className="flex items-center gap-2 text-xs font-bold text-purple-300">
+                  <CalendarPlus className="w-4 h-4 text-purple-400" />
+                  <span>Registrar Eventos no Meu Bairro</span>
                 </div>
                 <p className="text-xs text-slate-300 leading-relaxed">
-                  Moradores não podem cadastrar estabelecimentos. Para divulgar sua loja, consultório, oficina, barbearia ou restaurante no mapa oficial com logomarca e WhatsApp, mude seu perfil para <strong>Empresa</strong>.
+                  Moradores podem registrar feiras comunitárias, eventos esportivos, culturais e atrações gratuitas ou pagas no bairro para divulgar no mapa e no BairrosCity.
                 </p>
                 <button
                   type="button"
-                  onClick={handleUpgradeToCompany}
-                  disabled={switching}
-                  className="w-full py-2.5 px-4 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 font-black text-xs flex items-center justify-center gap-2 cursor-pointer transition-all shadow-md shadow-lime-400/20 disabled:opacity-50"
+                  onClick={() => {
+                    onClose();
+                    onOpenRegisterEvent?.();
+                  }}
+                  className="w-full py-2.5 px-4 rounded-xl bg-purple-500 hover:bg-purple-400 text-white font-black text-xs flex items-center justify-center gap-2 cursor-pointer transition-all shadow-md shadow-purple-500/20 active:scale-95"
                 >
-                  {switching ? (
-                    <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <>
-                      <Building2 className="w-4 h-4" />
-                      <span>Mudar Perfil para Empresa</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </>
-                  )}
+                  <CalendarPlus className="w-4 h-4" />
+                  <span>Registrar Evento Comunitário</span>
                 </button>
+              </div>
+
+              {/* Exclusive Resident Role notice */}
+              <div className="p-3.5 rounded-xl bg-slate-800/50 border border-slate-700/50 text-[11px] text-slate-400 flex items-start gap-2.5">
+                <div className="w-2 h-2 rounded-full bg-emerald-400 mt-1 shrink-0" />
+                <p className="leading-relaxed">
+                  <strong className="text-slate-300">Apenas Eventos para Moradores:</strong> no portal dos moradores não é permitido cadastrar empresas comerciais. O cadastro e gerenciamento de empresas é restrito exclusivamente ao perfil empresarial.
+                </p>
               </div>
 
               {/* Logout button */}

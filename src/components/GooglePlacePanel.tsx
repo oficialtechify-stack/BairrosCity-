@@ -158,29 +158,34 @@ export const GooglePlacePanel: React.FC<GooglePlacePanelProps> = ({
         </>
       )}
 
-      {/* 2. WHEN OPEN: Full Google Maps Sliding Panel (Desktop Only) */}
+      {/* 2. WHEN OPEN: Google Maps Sliding Panel (Responsive: Sheet on Mobile, Left Rail on Desktop) */}
       <div
         id="google-maps-left-panel-container"
-        className={`hidden lg:flex absolute top-0 bottom-0 left-16 z-[400] transition-transform duration-300 ease-out ${
-          isOpen ? 'translate-x-0' : '-translate-x-full pointer-events-none'
+        className={`flex fixed lg:absolute inset-x-0 bottom-14 lg:bottom-0 top-14 sm:top-16 lg:top-0 lg:left-16 lg:right-auto z-[490] lg:z-[400] transition-transform duration-300 ease-out ${
+          isOpen ? 'translate-y-0 lg:translate-x-0' : 'translate-y-[110%] lg:-translate-x-full pointer-events-none'
         }`}
       >
-        {/* Sleek Google Maps Collapse Tab attached to the right side of the panel */}
+        {/* Sleek Google Maps Collapse Tab attached to the right side of the panel (Desktop) */}
         <button
           id="google-maps-collapse-panel-tab"
           type="button"
           onClick={onToggleOpen}
-          className="absolute top-1/2 -translate-y-1/2 -right-4 z-10 w-4 h-12 bg-white hover:bg-slate-50 text-slate-500 hover:text-blue-600 rounded-r-md shadow-md border-y border-r border-slate-300 flex items-center justify-center cursor-pointer transition-all hover:w-5 group"
+          className="hidden lg:flex absolute top-1/2 -translate-y-1/2 -right-4 z-10 w-4 h-12 bg-white hover:bg-slate-50 text-slate-500 hover:text-blue-600 rounded-r-md shadow-md border-y border-r border-slate-300 items-center justify-center cursor-pointer transition-all hover:w-5 group"
           title="Minimizar painel lateral"
         >
           <ChevronLeft className="w-3.5 h-3.5 transition-transform group-hover:-translate-x-0.5" />
         </button>
 
         {/* Main Panel Box */}
-        <div className="w-[360px] sm:w-[410px] max-w-[calc(100vw-70px)] h-full bg-white shadow-2xl border-r border-slate-200 flex flex-col overflow-hidden relative">
+        <div className="w-full lg:w-[410px] lg:max-w-[calc(100vw-70px)] h-full bg-white shadow-2xl border-t lg:border-t-0 border-r border-slate-200 flex flex-col overflow-hidden relative rounded-t-3xl lg:rounded-none">
           
-          {/* Top Spacing to not collide with floating Google Search bar */}
-          <div className="h-16 shrink-0 bg-slate-50/60 border-b border-slate-100" />
+          {/* Mobile Handle Indicator */}
+          <div className="lg:hidden flex justify-center pt-2.5 pb-1 bg-slate-50 shrink-0">
+            <div className="w-10 h-1.5 rounded-full bg-slate-300" />
+          </div>
+
+          {/* Top Spacing on desktop to not collide with floating Google Search bar */}
+          <div className="hidden lg:block h-16 shrink-0 bg-slate-50/60 border-b border-slate-100" />
 
           {/* PROMINENT MINIMIZE / COLLAPSE ACTION BAR */}
           <div className="px-3.5 py-2 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0">
@@ -998,9 +1003,9 @@ export const GooglePlacePanel: React.FC<GooglePlacePanelProps> = ({
 
                 <button
                   onClick={onOpenRegister}
-                  className="px-2.5 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold rounded-lg text-xs transition-colors flex items-center gap-1 cursor-pointer"
+                  className="px-2.5 py-1 bg-purple-50 text-purple-700 hover:bg-purple-100 font-bold rounded-lg text-xs transition-colors flex items-center gap-1 cursor-pointer"
                 >
-                  <span>+ Cadastrar</span>
+                  <span>+ Evento</span>
                 </button>
               </div>
 

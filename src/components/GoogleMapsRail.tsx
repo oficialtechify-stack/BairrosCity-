@@ -8,7 +8,8 @@ import {
   Home,
   Users,
   Building2,
-  User
+  User,
+  CalendarPlus
 } from 'lucide-react';
 import { UserProfile } from '../types';
 
@@ -136,17 +137,19 @@ export const GoogleMapsRail: React.FC<GoogleMapsRailProps> = ({
           </span>
         </button>
 
-        {/* + Cadastrar */}
-        <button
-          onClick={onOpenRegister}
-          className="flex flex-col items-center gap-1 group w-full py-1 hover:bg-slate-50 transition-colors text-blue-600"
-          title="Cadastrar Nova Empresa ou Evento"
-        >
-          <PlusCircle className="w-5 h-5 text-lime-600" />
-          <span className="text-[9px] font-bold text-lime-700">
-            Cadastrar
-          </span>
-        </button>
+        {/* Registrar Eventos (para moradores e visitantes) OU Empresa */}
+        {currentUser?.role === 'empresa' ? null : (
+          <button
+            onClick={onOpenRegister}
+            className="flex flex-col items-center gap-1 group w-full py-1 hover:bg-slate-50 transition-colors text-purple-600"
+            title="Registrar Evento Comunitário"
+          >
+            <CalendarPlus className="w-5 h-5 text-purple-600 group-hover:scale-110 transition-transform" />
+            <span className="text-[9px] font-bold text-purple-700 text-center leading-tight">
+              Eventos
+            </span>
+          </button>
+        )}
       </div>
 
       {/* Bottom Section */}

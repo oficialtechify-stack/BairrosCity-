@@ -942,26 +942,6 @@ export const MapComponent: React.FC<MapProps> = ({
           </div>
         </button>
 
-        {/* 3. Street View Pegman Button */}
-        <button
-          type="button"
-          onClick={() => {
-            if (onOpenStreetView) {
-              onOpenStreetView();
-            } else if (onToggleMarkerStyle) {
-              onToggleMarkerStyle();
-            }
-          }}
-          className="w-10 h-10 rounded-full bg-slate-900/90 text-white shadow-lg border border-slate-700/80 flex items-center justify-center hover:bg-slate-800 transition-all active:scale-95 cursor-pointer backdrop-blur-md group"
-          title="Street View 360° (Explorar as ruas)"
-        >
-          {/* Authentic Google Pegman Figurine */}
-          <div className="w-4 h-5 flex flex-col items-center group-hover:scale-110 transition-transform">
-            <div className="w-2 h-2 rounded-full bg-amber-400"></div>
-            <div className="w-3 h-2.5 bg-amber-500 rounded-xs mt-0.5"></div>
-          </div>
-        </button>
-
         {/* 4. Google Maps Real-Time GPS Follow Button (Target Crosshair with Blue Dot) */}
         <button
           id="google-maps-gps-btn"
@@ -1027,15 +1007,6 @@ export const MapComponent: React.FC<MapProps> = ({
           </button>
         </div>
       </div>
-
-      {/* Google Maps Street View 360 Floating Thumbnail (Image 2) */}
-      {onOpenStreetView && !streetViewActive && streetViewNode && (
-        <StreetViewThumbnail
-          currentNode={streetViewNode}
-          onOpenStreetView={onOpenStreetView}
-          className="absolute bottom-20 sm:bottom-6 left-3 sm:left-4"
-        />
-      )}
 
       {/* Google Maps Bottom Center Watermark & Legal Footer */}
       <div className="absolute bottom-16 sm:bottom-2 right-0 left-0 pointer-events-none z-[400] flex items-center justify-between px-3 py-1 bg-gradient-to-t from-slate-950/40 to-transparent text-[10px] text-slate-300 select-none">

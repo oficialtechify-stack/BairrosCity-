@@ -968,8 +968,7 @@ export default function App() {
             setIsResidentProfileOpen(false);
             setCurrentView('map');
           }}
-          onRemoveSaved={handleToggleSavePlace}
-          onUpgradeToCompany={() => {
+          onOpenRegisterEvent={() => {
             setIsResidentProfileOpen(false);
             setIsRegisterOpen(true);
           }}

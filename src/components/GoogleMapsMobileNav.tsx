@@ -19,7 +19,9 @@ import {
   LogOut,
   LogIn,
   ShieldCheck,
-  Plus
+  Plus,
+  CalendarPlus,
+  Calendar
 } from 'lucide-react';
 
 interface GoogleMapsMobileNavProps {
@@ -253,26 +255,40 @@ export const GoogleMapsMobileNav: React.FC<GoogleMapsMobileNavProps> = ({
           <span className="text-[10px] tracking-tight">BairrosCity</span>
         </button>
 
-        {/* Tab 3: Minha Empresa / Catálogo */}
-        <button
-          type="button"
-          onClick={() => {
-            setActiveNavTab('empresa');
-            if (currentUser && currentUser.role === 'empresa') {
+        {/* Tab 3: Minha Empresa (para empresas) OU Eventos (para moradores e visitantes) */}
+        {currentUser && currentUser.role === 'empresa' ? (
+          <button
+            type="button"
+            onClick={() => {
+              setActiveNavTab('empresa');
               onOpenCompanyManager();
-            } else {
+            }}
+            className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-2xl transition-all cursor-pointer ${
+              activeNavTab === 'empresa' ? 'text-emerald-600 font-bold' : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <div className={`p-1 rounded-full ${activeNavTab === 'empresa' ? 'bg-emerald-50' : ''}`}>
+              <Building2 className="w-5 h-5" />
+            </div>
+            <span className="text-[10px] tracking-tight">Empresa</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              setActiveNavTab('eventos');
               onOpenRegister();
-            }
-          }}
-          className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-2xl transition-all cursor-pointer ${
-            activeNavTab === 'empresa' ? 'text-emerald-600 font-bold' : 'text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <div className={`p-1 rounded-full ${activeNavTab === 'empresa' ? 'bg-emerald-50' : ''}`}>
-            <Building2 className="w-5 h-5" />
-          </div>
-          <span className="text-[10px] tracking-tight">Empresa</span>
-        </button>
+            }}
+            className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-2xl transition-all cursor-pointer ${
+              activeNavTab === 'eventos' ? 'text-purple-600 font-bold' : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <div className={`p-1 rounded-full ${activeNavTab === 'eventos' ? 'bg-purple-50' : ''}`}>
+              <CalendarPlus className="w-5 h-5" />
+            </div>
+            <span className="text-[10px] tracking-tight">Eventos</span>
+          </button>
+        )}
 
         {/* Tab 4: Salvos */}
         <button
@@ -448,10 +464,10 @@ export const GoogleMapsMobileNav: React.FC<GoogleMapsMobileNavProps> = ({
                       setIsAccountSheetOpen(false);
                       onOpenRegister();
                     }}
-                    className="w-full px-3.5 py-2 rounded-xl text-left text-xs font-medium text-slate-700 hover:bg-slate-100 flex items-center gap-2.5 cursor-pointer"
+                    className="w-full px-3.5 py-2.5 rounded-xl text-left text-xs font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 flex items-center gap-2.5 cursor-pointer"
                   >
-                    <Building2 className="w-4 h-4 text-slate-500 shrink-0" />
-                    <span>Cadastrar Empresa no Mapa</span>
+                    <CalendarPlus className="w-4 h-4 text-purple-600 shrink-0" />
+                    <span>Registrar Eventos no Bairro</span>
                   </button>
                 </>
               )}
