@@ -99,6 +99,7 @@ export default function App() {
   // Real-time GPS User Location & Walking Tracker
   const {
     userLocation,
+    deviceHeading,
     isTracking,
     isFollowing,
     setIsFollowing,
@@ -744,6 +745,7 @@ export default function App() {
                     streetViewActive={true}
                     streetViewNode={currentStreetNode}
                     streetViewHeading={streetViewHeading}
+                    deviceHeading={deviceHeading}
                   />
                 </div>
               </div>
@@ -788,6 +790,7 @@ export default function App() {
                 streetViewActive={false}
                 streetViewNode={currentStreetNode}
                 streetViewHeading={streetViewHeading}
+                deviceHeading={deviceHeading}
               />
             )}
           </main>
@@ -824,6 +827,20 @@ export default function App() {
                 setSelectedPlace(place);
                 setIsSidePanelOpen(true);
               }}
+              onLogout={async () => {
+                try {
+                  await signOut(auth);
+                } catch (e) {
+                  console.warn(e);
+                }
+                localStorage.removeItem('bairromap_user');
+                setCurrentUser(null);
+                setGpsToast('Você saiu da sua conta.');
+                setTimeout(() => setGpsToast(null), 2500);
+              }}
+              onOpenResidentProfile={() => setIsResidentProfileOpen(true)}
+              onOpenAdminPanel={() => setIsAdminPanelOpen(true)}
+              onGoogleLogin={handleGoogleDirectLogin}
             />
           )}
 
@@ -842,6 +859,18 @@ export default function App() {
             onOpenCompanyManager={() => setIsCompanyManagerOpen(true)}
             onOpenResidentProfile={() => setIsResidentProfileOpen(true)}
             onOpenAdminPanel={() => setIsAdminPanelOpen(true)}
+            onLogout={async () => {
+              try {
+                await signOut(auth);
+              } catch (e) {
+                console.warn(e);
+              }
+              localStorage.removeItem('bairromap_user');
+              setCurrentUser(null);
+              setGpsToast('Você saiu da sua conta.');
+              setTimeout(() => setGpsToast(null), 2500);
+            }}
+            onGoogleLogin={handleGoogleDirectLogin}
           />
 
         </div>

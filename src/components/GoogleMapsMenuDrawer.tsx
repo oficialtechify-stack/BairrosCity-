@@ -12,7 +12,9 @@ import {
   Phone,
   ShieldCheck,
   Building2,
-  User
+  User,
+  LogOut,
+  LogIn
 } from 'lucide-react';
 import { UserProfile } from '../types';
 
@@ -27,6 +29,8 @@ interface GoogleMapsMenuDrawerProps {
   onOpenCompanyManager?: () => void;
   onOpenResidentProfile?: () => void;
   onOpenAdminPanel?: () => void;
+  onLogout?: () => void;
+  onGoogleLogin?: () => void;
 }
 
 export const GoogleMapsMenuDrawer: React.FC<GoogleMapsMenuDrawerProps> = ({
@@ -40,6 +44,8 @@ export const GoogleMapsMenuDrawer: React.FC<GoogleMapsMenuDrawerProps> = ({
   onOpenCompanyManager,
   onOpenResidentProfile,
   onOpenAdminPanel,
+  onLogout,
+  onGoogleLogin,
 }) => {
   if (!isOpen) return null;
 
@@ -181,11 +187,55 @@ export const GoogleMapsMenuDrawer: React.FC<GoogleMapsMenuDrawerProps> = ({
               onSelectCategory('event');
               onClose();
             }}
-            className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 transition-colors"
+            className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer"
           >
             <Calendar className="w-5 h-5 text-purple-600" />
             <span>Eventos e Feiras</span>
           </button>
+
+          {/* Account Authentication Actions */}
+          {currentUser ? (
+            <div className="pt-2 border-t border-slate-100 mt-2">
+              <div className="px-3 py-2 mb-1 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
+                <div className="min-w-0 pr-2">
+                  <p className="text-xs font-bold text-slate-800 truncate">{currentUser.name}</p>
+                  <p className="text-[10px] text-slate-500 truncate">{currentUser.email}</p>
+                </div>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 shrink-0">
+                  {currentUser.role === 'empresa' ? 'Empresa' : 'Morador'}
+                </span>
+              </div>
+              {onLogout && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onLogout();
+                  }}
+                  className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-red-50 text-red-600 font-bold transition-colors cursor-pointer border border-red-200/60"
+                >
+                  <LogOut className="w-5 h-5 text-red-500" />
+                  <span>Sair da Minha Conta</span>
+                </button>
+              )}
+            </div>
+          ) : (
+            onGoogleLogin && (
+              <div className="pt-2 border-t border-slate-100 mt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onGoogleLogin();
+                  }}
+                  className="w-full flex items-center gap-3 p-3 rounded-xl bg-blue-50 text-blue-700 font-bold hover:bg-blue-100 transition-colors cursor-pointer border border-blue-200"
+                >
+                  <LogIn className="w-5 h-5 text-blue-600" />
+                  <span>Entrar com Conta Google</span>
+                </button>
+              </div>
+            )
+          )}
         </div>
 
         {/* Footer info */}

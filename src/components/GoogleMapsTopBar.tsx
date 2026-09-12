@@ -96,6 +96,10 @@ export const GoogleMapsTopBar: React.FC<GoogleMapsTopBarProps> = ({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const carouselRef = useRef<HTMLDivElement | null>(null);
 
+  const isAdmin =
+    currentUser?.email?.toLowerCase() === 'bairroscity@gmail.com' ||
+    currentUser?.email?.toLowerCase() === 'rickmarketing81@gmail.com';
+
   // Close dropdown on click outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -701,6 +705,19 @@ export const GoogleMapsTopBar: React.FC<GoogleMapsTopBarProps> = ({
                     </div>
 
                     <div className="py-1">
+                      {isAdmin && onOpenAdminPanel && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setUserDropdownOpen(false);
+                            onOpenAdminPanel();
+                          }}
+                          className="w-full px-4 py-2 text-left text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 flex items-center gap-2 cursor-pointer border-b border-amber-100"
+                        >
+                          <Shield className="w-4 h-4 text-amber-600" />
+                          <span>Painel Admin (Vereadores & Moradores)</span>
+                        </button>
+                      )}
                       {currentUser.role === 'empresa' ? (
                         <>
                           <button
@@ -860,6 +877,162 @@ export const GoogleMapsTopBar: React.FC<GoogleMapsTopBarProps> = ({
           <ChevronRight className="w-4 h-4" />
         </button>
       </div>
+
+      {/* Responsive Mobile User Menu Sheet with Backdrop */}
+      {userDropdownOpen && (
+        <div
+          className="md:hidden fixed inset-0 z-[900] bg-slate-950/60 backdrop-blur-xs flex flex-col justify-end p-3 animate-in fade-in duration-150"
+          onClick={() => setUserDropdownOpen(false)}
+        >
+          <div
+            className="bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden w-full max-w-sm mx-auto p-4 space-y-3 animate-in slide-in-from-bottom-3 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                {currentUser?.avatarUrl ? (
+                  <img
+                    src={currentUser.avatarUrl}
+                    alt={currentUser?.name}
+                    className="w-11 h-11 rounded-full object-cover border border-blue-500 shadow-sm"
+                  />
+                ) : (
+                  <div className="w-11 h-11 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-base shadow-sm">
+                    {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-slate-900 truncate">
+                    {currentUser?.name || 'Minha Conta'}
+                  </p>
+                  <p className="text-xs text-slate-500 truncate">{currentUser?.email}</p>
+                  {currentUser && (
+                    <span className="inline-block mt-0.5 px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800">
+                      {currentUser.role === 'empresa' ? 'Conta Empresarial' : 'Conta Morador'}
+                      {currentUser.neighborhood ? ` • ${currentUser.neighborhood}` : ''}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setUserDropdownOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center hover:bg-slate-200 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-1.5 pt-1">
+              {isAdmin && onOpenAdminPanel && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUserDropdownOpen(false);
+                    onOpenAdminPanel();
+                  }}
+                  className="w-full px-3 py-2.5 rounded-xl text-left text-xs font-bold bg-amber-50 text-amber-950 border border-amber-300 flex items-center gap-2.5 cursor-pointer shadow-xs"
+                >
+                  <Shield className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>Painel Admin (Vereadores & Moradores)</span>
+                </button>
+              )}
+
+              {currentUser?.role === 'empresa' ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUserDropdownOpen(false);
+                      onOpenCompanyManager();
+                    }}
+                    className="w-full px-3 py-2.5 rounded-xl text-left text-xs font-bold bg-lime-50 text-lime-900 border border-lime-300 flex items-center gap-2.5 cursor-pointer"
+                  >
+                    <Building2 className="w-4 h-4 text-lime-700 shrink-0" />
+                    <span>Gerenciar Minha Empresa</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUserDropdownOpen(false);
+                      onOpenRegister();
+                    }}
+                    className="w-full px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-100 rounded-xl flex items-center gap-2.5 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4 text-slate-500 shrink-0" />
+                    <span>Cadastrar Novo Local / Evento</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUserDropdownOpen(false);
+                      onOpenResidentProfile();
+                    }}
+                    className="w-full px-3 py-2.5 rounded-xl text-left text-xs font-bold bg-emerald-50 text-emerald-900 border border-emerald-300 flex items-center gap-2.5 cursor-pointer"
+                  >
+                    <User className="w-4 h-4 text-emerald-700 shrink-0" />
+                    <span>Meu Painel & Locais Salvos</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUserDropdownOpen(false);
+                      onOpenRegister();
+                    }}
+                    className="w-full px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-100 rounded-xl flex items-center gap-2.5 cursor-pointer"
+                  >
+                    <Building2 className="w-4 h-4 text-slate-500 shrink-0" />
+                    <span>Cadastrar Empresa no Mapa</span>
+                  </button>
+                </>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setUserDropdownOpen(false);
+                  onNavigateBairrosCity();
+                }}
+                className="w-full px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-100 rounded-xl flex items-center gap-2.5 cursor-pointer"
+              >
+                <Compass className="w-4 h-4 text-blue-600 shrink-0" />
+                <span>Explorar BairrosCity (Notícias & Vereador)</span>
+              </button>
+            </div>
+
+            <div className="pt-2 border-t border-slate-100">
+              {currentUser ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUserDropdownOpen(false);
+                    onLogout();
+                  }}
+                  className="w-full px-4 py-3 rounded-2xl bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-colors border border-red-200"
+                >
+                  <LogOut className="w-4 h-4 text-red-500" />
+                  <span>Sair da Minha Conta</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUserDropdownOpen(false);
+                    onGoogleLogin();
+                  }}
+                  className="w-full px-4 py-3 rounded-2xl bg-blue-600 text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-md"
+                >
+                  <LogIn className="w-4 h-4" />
+                  <span>Fazer Login com Google</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 };

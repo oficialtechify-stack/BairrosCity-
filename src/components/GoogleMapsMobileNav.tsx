@@ -14,7 +14,12 @@ import {
   MessageCircle,
   Share2,
   Star,
-  MapPin
+  MapPin,
+  User,
+  LogOut,
+  LogIn,
+  ShieldCheck,
+  Plus
 } from 'lucide-react';
 
 interface GoogleMapsMobileNavProps {
@@ -34,6 +39,10 @@ interface GoogleMapsMobileNavProps {
   userLocation: { lat: number; lng: number } | null;
   onDirections: (place: Place) => void;
   onOpenReviewModal: (place: Place) => void;
+  onLogout?: () => void;
+  onOpenResidentProfile?: () => void;
+  onOpenAdminPanel?: () => void;
+  onGoogleLogin?: () => void;
 }
 
 export const GoogleMapsMobileNav: React.FC<GoogleMapsMobileNavProps> = ({
@@ -53,8 +62,17 @@ export const GoogleMapsMobileNav: React.FC<GoogleMapsMobileNavProps> = ({
   userLocation,
   onDirections,
   onOpenReviewModal,
+  onLogout,
+  onOpenResidentProfile,
+  onOpenAdminPanel,
+  onGoogleLogin,
 }) => {
-  const [activeNavTab, setActiveNavTab] = useState<'explorar' | 'salvos' | 'bairroscity' | 'empresa' | 'contribuir'>('explorar');
+  const [activeNavTab, setActiveNavTab] = useState<'explorar' | 'salvos' | 'bairroscity' | 'empresa' | 'conta'>('explorar');
+  const [isAccountSheetOpen, setIsAccountSheetOpen] = useState(false);
+
+  const isAdmin =
+    currentUser?.email?.toLowerCase() === 'bairroscity@gmail.com' ||
+    currentUser?.email?.toLowerCase() === 'rickmarketing81@gmail.com';
 
   const isSaved = selectedPlace ? savedPlaceIds.includes(selectedPlace.id) : false;
 
@@ -278,23 +296,196 @@ export const GoogleMapsMobileNav: React.FC<GoogleMapsMobileNavProps> = ({
           )}
         </button>
 
-        {/* Tab 5: Contribuir / Cadastrar */}
-        <button
-          type="button"
-          onClick={() => {
-            setActiveNavTab('contribuir');
-            onOpenRegister();
-          }}
-          className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-2xl transition-all cursor-pointer ${
-            activeNavTab === 'contribuir' ? 'text-blue-600 font-bold' : 'text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <div className={`p-1 rounded-full ${activeNavTab === 'contribuir' ? 'bg-blue-50' : ''}`}>
-            <PlusCircle className="w-5 h-5" />
-          </div>
-          <span className="text-[10px] tracking-tight">Cadastrar</span>
-        </button>
+        {/* Tab 5: Minha Conta / Sair ou Entrar */}
+        {currentUser ? (
+          <button
+            type="button"
+            onClick={() => {
+              setActiveNavTab('conta');
+              setIsAccountSheetOpen(true);
+            }}
+            className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-2xl transition-all cursor-pointer ${
+              activeNavTab === 'conta' || isAccountSheetOpen ? 'text-blue-600 font-bold' : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <div className={`w-7 h-7 rounded-full flex items-center justify-center overflow-hidden border ${
+              activeNavTab === 'conta' || isAccountSheetOpen ? 'border-blue-600 bg-blue-100 text-blue-700' : 'border-slate-300 bg-slate-100 text-slate-700'
+            }`}>
+              {currentUser.avatarUrl ? (
+                <img src={currentUser.avatarUrl} alt={currentUser.name} className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-xs font-bold">{currentUser.name.charAt(0).toUpperCase()}</span>
+              )}
+            </div>
+            <span className="text-[10px] tracking-tight">Conta</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              if (onGoogleLogin) {
+                onGoogleLogin();
+              } else {
+                onOpenRegister();
+              }
+            }}
+            className="flex flex-col items-center gap-0.5 py-1 px-3 rounded-2xl transition-all cursor-pointer text-slate-500 hover:text-blue-600"
+          >
+            <div className="p-1 rounded-full bg-slate-100 text-slate-600">
+              <LogIn className="w-5 h-5" />
+            </div>
+            <span className="text-[10px] tracking-tight">Entrar</span>
+          </button>
+        )}
       </nav>
+
+      {/* Mobile Account Bottom Sheet Modal */}
+      {isAccountSheetOpen && currentUser && (
+        <div
+          className="fixed inset-0 z-[700] bg-slate-950/60 backdrop-blur-xs flex flex-col justify-end p-3 animate-in fade-in duration-150"
+          onClick={() => setIsAccountSheetOpen(false)}
+        >
+          <div
+            className="bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden w-full max-w-sm mx-auto p-4 space-y-3.5 animate-in slide-in-from-bottom-3 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header info */}
+            <div className="flex items-start justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                {currentUser.avatarUrl ? (
+                  <img
+                    src={currentUser.avatarUrl}
+                    alt={currentUser.name}
+                    className="w-12 h-12 rounded-full object-cover border-2 border-blue-500 shadow-sm"
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-lg shadow-sm">
+                    {currentUser.name.charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-slate-900 truncate">{currentUser.name}</p>
+                  <p className="text-xs text-slate-500 truncate">{currentUser.email}</p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800">
+                      {currentUser.role === 'empresa' ? 'Empresa' : 'Morador'}
+                    </span>
+                    {currentUser.neighborhood && (
+                      <span className="text-[11px] text-slate-500 font-medium truncate">
+                        📍 {currentUser.neighborhood}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsAccountSheetOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center hover:bg-slate-200 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Account Quick Options */}
+            <div className="space-y-1.5">
+              {isAdmin && onOpenAdminPanel && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAccountSheetOpen(false);
+                    onOpenAdminPanel();
+                  }}
+                  className="w-full px-3.5 py-2.5 rounded-xl text-left text-xs font-bold bg-amber-50 text-amber-950 border border-amber-300 flex items-center gap-2.5 cursor-pointer shadow-xs"
+                >
+                  <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>Painel Admin (Vereadores & Moradores)</span>
+                </button>
+              )}
+
+              {currentUser.role === 'empresa' ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAccountSheetOpen(false);
+                      onOpenCompanyManager();
+                    }}
+                    className="w-full px-3.5 py-2.5 rounded-xl text-left text-xs font-bold bg-lime-50 text-lime-900 border border-lime-300 flex items-center gap-2.5 cursor-pointer"
+                  >
+                    <Building2 className="w-4 h-4 text-lime-700 shrink-0" />
+                    <span>Gerenciar Minha Empresa</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAccountSheetOpen(false);
+                      onOpenRegister();
+                    }}
+                    className="w-full px-3.5 py-2 rounded-xl text-left text-xs font-medium text-slate-700 hover:bg-slate-100 flex items-center gap-2.5 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4 text-slate-500 shrink-0" />
+                    <span>Cadastrar Novo Local / Evento</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAccountSheetOpen(false);
+                      onOpenResidentProfile?.();
+                    }}
+                    className="w-full px-3.5 py-2.5 rounded-xl text-left text-xs font-bold bg-emerald-50 text-emerald-900 border border-emerald-300 flex items-center gap-2.5 cursor-pointer"
+                  >
+                    <User className="w-4 h-4 text-emerald-700 shrink-0" />
+                    <span>Meu Painel & Locais Salvos</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAccountSheetOpen(false);
+                      onOpenRegister();
+                    }}
+                    className="w-full px-3.5 py-2 rounded-xl text-left text-xs font-medium text-slate-700 hover:bg-slate-100 flex items-center gap-2.5 cursor-pointer"
+                  >
+                    <Building2 className="w-4 h-4 text-slate-500 shrink-0" />
+                    <span>Cadastrar Empresa no Mapa</span>
+                  </button>
+                </>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAccountSheetOpen(false);
+                  onOpenSaved();
+                }}
+                className="w-full px-3.5 py-2 rounded-xl text-left text-xs font-medium text-slate-700 hover:bg-slate-100 flex items-center gap-2.5 cursor-pointer"
+              >
+                <Bookmark className="w-4 h-4 text-amber-500 shrink-0" />
+                <span>Locais Salvos ({savedPlaceIds.length})</span>
+              </button>
+            </div>
+
+            {/* Logout button */}
+            <div className="pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAccountSheetOpen(false);
+                  onLogout?.();
+                }}
+                className="w-full px-4 py-3 rounded-2xl bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-colors border border-red-200 active:scale-98"
+              >
+                <LogOut className="w-4 h-4 text-red-500" />
+                <span>Sair da Minha Conta</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -52,12 +52,13 @@ export function useRealtimeLocation(
       if (compassHeading !== null) {
         const roundedHeading = Math.round(compassHeading);
         setDeviceHeading((prev) => {
-          if (prev !== null && Math.abs(prev - roundedHeading) < 3) return prev;
+          if (prev !== null && Math.abs(prev - roundedHeading) < 2) return prev;
           return roundedHeading;
         });
+        // Only update userLocation heading if there is a noticeable change (> 6 deg)
         setUserLocation((prev) => {
           if (!prev) return prev;
-          if (prev.heading !== undefined && Math.abs(prev.heading - roundedHeading) < 3) return prev;
+          if (prev.heading !== undefined && Math.abs(prev.heading - roundedHeading) < 6) return prev;
           return { ...prev, heading: roundedHeading };
         });
       }

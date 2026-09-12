@@ -1,1 +1,7 @@
 @import "tailwindcss";
+
+/* Smooth Google Maps User Marker gliding transition */
+.leaflet-marker-icon.gmaps-user-marker-smooth {
+  transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.4, 1) !important;
+  will-change: transform;
+}

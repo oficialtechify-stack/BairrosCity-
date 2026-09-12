@@ -45,6 +45,7 @@ interface MapProps {
   streetViewActive?: boolean;
   streetViewNode?: StreetViewNode;
   streetViewHeading?: number;
+  deviceHeading?: number | null;
 }
 
 const CATEGORY_SVGS: Record<string, string> = {
@@ -75,13 +76,14 @@ export const MapComponent: React.FC<MapProps> = ({
   markerStyle = 'arrow',
   onToggleMarkerStyle,
   isTracking = false,
-  isFollowing = true,
+  isFollowing = false,
   onDragMap,
   onDirectionsClick,
   onOpenStreetView,
   streetViewActive = false,
   streetViewNode,
   streetViewHeading,
+  deviceHeading,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -92,6 +94,8 @@ export const MapComponent: React.FC<MapProps> = ({
   const pickerMarkerRef = useRef<L.Marker | null>(null);
   const hasInitialCenteredRef = useRef<boolean>(false);
   const prevTargetCoordRef = useRef<{ lat: number; lng: number } | null>(null);
+  const prevMarkerStyleRef = useRef<'arrow' | 'pegman'>('arrow');
+  const lastPanTimeRef = useRef<number>(0);
   const isUserInteractingRef = useRef<boolean>(false);
   const [layersMenuOpen, setLayersMenuOpen] = useState<boolean>(false);
   const [mapReady, setMapReady] = useState<boolean>(false);
@@ -115,9 +119,12 @@ export const MapComponent: React.FC<MapProps> = ({
     const stopFollowing = () => {
       isUserInteractingRef.current = true;
       onDragMap?.();
+    };
+
+    const resumeInteraction = () => {
       setTimeout(() => {
         isUserInteractingRef.current = false;
-      }, 350);
+      }, 400);
     };
 
     map.on('dragstart', stopFollowing);
@@ -133,13 +140,21 @@ export const MapComponent: React.FC<MapProps> = ({
     });
     map.on('touchstart', stopFollowing);
 
+    map.on('dragend', resumeInteraction);
+    map.on('moveend', (e: any) => {
+      if (e.originalEvent) {
+        resumeInteraction();
+      }
+    });
+    map.on('touchend', resumeInteraction);
+
     const container = mapContainerRef.current;
-    const handlePointerDown = () => stopFollowing();
-    const handleWheel = () => stopFollowing();
     if (container) {
-      container.addEventListener('pointerdown', handlePointerDown, { passive: true });
-      container.addEventListener('touchstart', handlePointerDown, { passive: true });
-      container.addEventListener('wheel', handleWheel, { passive: true });
+      container.addEventListener('pointerdown', stopFollowing, { passive: true });
+      container.addEventListener('touchstart', stopFollowing, { passive: true });
+      container.addEventListener('wheel', stopFollowing, { passive: true });
+      container.addEventListener('pointerup', resumeInteraction, { passive: true });
+      container.addEventListener('touchend', resumeInteraction, { passive: true });
     }
 
     // Tile Layer
@@ -158,9 +173,11 @@ export const MapComponent: React.FC<MapProps> = ({
 
     return () => {
       if (container) {
-        container.removeEventListener('pointerdown', handlePointerDown);
-        container.removeEventListener('touchstart', handlePointerDown);
-        container.removeEventListener('wheel', handleWheel);
+        container.removeEventListener('pointerdown', stopFollowing);
+        container.removeEventListener('touchstart', stopFollowing);
+        container.removeEventListener('wheel', stopFollowing);
+        container.removeEventListener('pointerup', resumeInteraction);
+        container.removeEventListener('touchend', resumeInteraction);
       }
       map.remove();
       mapRef.current = null;
@@ -425,7 +442,7 @@ export const MapComponent: React.FC<MapProps> = ({
       return `
         <div style="position: relative; width: 68px; height: 68px; display: flex; align-items: center; justify-content: center; pointer-events: none;">
           <!-- Compass directional platform -->
-          <div style="position: absolute; width: 36px; height: 36px; border-radius: 50%; background: rgba(255, 255, 255, 0.95); border: 2.5px solid #ea4335; box-shadow: 0 4px 12px rgba(0,0,0,0.4); transform: rotate(${heading}deg); transition: transform 0.2s ease-out; display: flex; align-items: center; justify-content: center;">
+          <div id="gmaps-user-heading-cone" style="position: absolute; width: 36px; height: 36px; border-radius: 50%; background: rgba(255, 255, 255, 0.95); border: 2.5px solid #ea4335; box-shadow: 0 4px 12px rgba(0,0,0,0.4); transform: rotate(${heading}deg); transition: transform 0.2s ease-out; display: flex; align-items: center; justify-content: center;">
             <div style="position: absolute; top: -7px; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 8px solid #ea4335;"></div>
           </div>
           <!-- 3D Pegman Figurine -->
@@ -445,7 +462,7 @@ export const MapComponent: React.FC<MapProps> = ({
     return `
       <div style="position: relative; width: 68px; height: 68px; display: flex; align-items: center; justify-content: center; pointer-events: none;">
         <!-- Direction Beam / Seta - rotates with user heading -->
-        <div style="position: absolute; width: 68px; height: 68px; pointer-events: none; transform: rotate(${heading}deg); transform-origin: center center; transition: transform 0.2s ease-out; display: flex; align-items: center; justify-content: center;">
+        <div id="gmaps-user-heading-cone" style="position: absolute; width: 68px; height: 68px; pointer-events: none; transform: rotate(${heading}deg); transform-origin: center center; transition: transform 0.2s ease-out; display: flex; align-items: center; justify-content: center;">
           <svg width="68" height="68" viewBox="0 0 68 68" style="overflow: visible;">
             <defs>
               <radialGradient id="beamGrad" cx="50%" cy="50%" r="50%">
@@ -462,10 +479,10 @@ export const MapComponent: React.FC<MapProps> = ({
         </div>
 
         <!-- Radiating Pulse Radio Wave -->
-        <div style="position: absolute; width: 36px; height: 36px; border-radius: 50%; background-color: rgba(26, 115, 232, 0.4); animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+        <div style="position: absolute; width: 36px; height: 36px; border-radius: 50%; background-color: rgba(26, 115, 232, 0.35); animation: ping 2.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
 
         <!-- Core Google Maps Glowing Blue Dot with Crisp White Border -->
-        <div style="position: relative; width: 22px; height: 22px; border-radius: 50%; background: #1a73e8; border: 3.5px solid #ffffff; box-shadow: 0 0 14px rgba(26, 115, 232, 1), 0 3px 8px rgba(0,0,0,0.5); z-index: 10;"></div>
+        <div style="position: relative; width: 22px; height: 22px; border-radius: 50%; background: #1a73e8; border: 3.5px solid #ffffff; box-shadow: 0 0 14px rgba(26, 115, 232, 0.9), 0 3px 8px rgba(0,0,0,0.45); z-index: 10;"></div>
       </div>
     `;
   };
@@ -493,11 +510,11 @@ export const MapComponent: React.FC<MapProps> = ({
 
     const heading = streetViewActive && streetViewHeading !== undefined
       ? streetViewHeading
-      : (userLocation?.heading ?? 0);
+      : ((deviceHeading !== undefined && deviceHeading !== null) ? deviceHeading : (userLocation?.heading ?? 0));
 
     // Create or update Marker with precise centering
     const icon = L.divIcon({
-      className: '!bg-transparent !border-0 !shadow-none !overflow-visible cursor-pointer',
+      className: '!bg-transparent !border-0 !shadow-none !overflow-visible cursor-pointer gmaps-user-marker-smooth',
       html: getUserMarkerHtml(heading, markerStyle === 'pegman' ? 'pegman' : 'arrow'),
       iconSize: [68, 68],
       iconAnchor: [34, 34],
@@ -519,6 +536,7 @@ export const MapComponent: React.FC<MapProps> = ({
       });
 
       userMarkerRef.current = marker;
+      prevMarkerStyleRef.current = markerStyle;
 
       // Only center ONCE on initial marker mount if not already centered
       if (!hasInitialCenteredRef.current) {
@@ -529,22 +547,40 @@ export const MapComponent: React.FC<MapProps> = ({
       }
       prevTargetCoordRef.current = { lat: targetLat, lng: targetLng };
     } else {
-      // Smooth update position without destroying marker
+      // Smooth update position without destroying marker DOM element
       userMarkerRef.current.setLatLng([targetLat, targetLng]);
-      userMarkerRef.current.setIcon(icon);
 
-      // Check if coordinate actually moved
-      const prev = prevTargetCoordRef.current;
-      const coordMoved = !prev || Math.abs(prev.lat - targetLat) > 0.00005 || Math.abs(prev.lng - targetLng) > 0.00005;
-      prevTargetCoordRef.current = { lat: targetLat, lng: targetLng };
+      // Only rebuild icon if markerStyle toggled (arrow <-> pegman)
+      if (prevMarkerStyleRef.current !== markerStyle) {
+        prevMarkerStyleRef.current = markerStyle;
+        userMarkerRef.current.setIcon(icon);
+      } else {
+        // Just rotate the cone smoothly in CSS without destroying DOM
+        const coneEl = document.getElementById('gmaps-user-heading-cone');
+        if (coneEl) {
+          coneEl.style.transform = `rotate(${heading}deg)`;
+        }
+      }
 
-      // CRITICAL: NEVER pan if only heading/compass rotated or if user is interacting with map!
-      // Only pan if in Street View mode OR if follow is explicitly active AND coordinate genuinely moved
-      if (streetViewActive || (isFollowing && coordMoved && !isUserInteractingRef.current)) {
+      // Check camera auto-follow: NEVER fight user touch/drag
+      const now = Date.now();
+      if (streetViewActive) {
         map.panTo([targetLat, targetLng], {
           animate: true,
           duration: 0.5,
         });
+      } else if (isFollowing && !isUserInteractingRef.current && (now - lastPanTimeRef.current > 2500)) {
+        // Only pan if user has moved noticeably from current map center (> 30 meters)
+        const center = map.getCenter();
+        const distMeters = center.distanceTo([targetLat, targetLng]);
+        if (distMeters > 30) {
+          lastPanTimeRef.current = now;
+          map.panTo([targetLat, targetLng], {
+            animate: true,
+            duration: 0.8,
+            easeLinearity: 0.25,
+          });
+        }
       }
     }
 
@@ -553,7 +589,7 @@ export const MapComponent: React.FC<MapProps> = ({
       const accuracyRadius = distanceFilter > 0 ? distanceFilter * 1000 : Math.max(userLocation.accuracy || 18, 15);
 
       if (!radiusCircleRef.current) {
-        const circle = L.circle([userLocation.lat, userLocation.lng], {
+        const circle = L.circle([targetLat, targetLng], {
           radius: accuracyRadius,
           color: '#1a73e8',
           weight: 1.5,
@@ -564,14 +600,14 @@ export const MapComponent: React.FC<MapProps> = ({
         }).addTo(map);
         radiusCircleRef.current = circle;
       } else {
-        radiusCircleRef.current.setLatLng([userLocation.lat, userLocation.lng]);
+        radiusCircleRef.current.setLatLng([targetLat, targetLng]);
         radiusCircleRef.current.setRadius(accuracyRadius);
       }
     } else if (radiusCircleRef.current) {
       radiusCircleRef.current.remove();
       radiusCircleRef.current = null;
     }
-  }, [mapReady, userLocation, markerStyle, isFollowing, distanceFilter, streetViewActive, streetViewNode, streetViewHeading]);
+  }, [mapReady, userLocation, markerStyle, isFollowing, distanceFilter, streetViewActive, streetViewNode, streetViewHeading, deviceHeading]);
 
   // Render Google Maps Style Place Pins
   useEffect(() => {
