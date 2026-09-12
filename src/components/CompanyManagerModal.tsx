@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { Place, UserProfile, CategoryType, ProductItem, Company } from '../types';
 import { CATEGORY_CONFIG, NEIGHBORHOODS } from '../data/initialPlaces';
+import { NEIGHBORHOOD_COORDINATES } from '../data/neighborhoodCoordinates';
 import { 
   updatePlaceInFirestore, 
   createPlaceInFirestore, 
@@ -119,6 +120,13 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
   const [website, setWebsite] = useState(companyPlace?.website || '');
   const [isPaused, setIsPaused] = useState(Boolean(companyPlace?.isPaused));
   const [priceRange, setPriceRange] = useState<'$' | '$$' | '$$$' | '$$$$'>(companyPlace?.priceRange || '$$');
+  const [placeLat, setPlaceLat] = useState<number>(
+    typeof companyPlace?.lat === 'number' ? companyPlace.lat : parseFloat(String(companyPlace?.lat)) || -8.0645
+  );
+  const [placeLng, setPlaceLng] = useState<number>(
+    typeof companyPlace?.lng === 'number' ? companyPlace.lng : parseFloat(String(companyPlace?.lng)) || -34.9855
+  );
+  const [hasChangedLocation, setHasChangedLocation] = useState<boolean>(false);
 
   // Products / Services list
   const [products, setProducts] = useState<ProductItem[]>(companyPlace?.productsOrServices || []);
@@ -215,13 +223,22 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
   // Handle picked coordinates from parent map and persist them
   useEffect(() => {
     if (pickedCoord) {
-      setRegLat(pickedCoord.lat);
-      setRegLng(pickedCoord.lng);
-      setHasPickedCoord(true);
-      setSuccessMsg(`Ponto no mapa definido com sucesso! (${pickedCoord.lat.toFixed(4)}, ${pickedCoord.lng.toFixed(4)})`);
-      setTimeout(() => setSuccessMsg(''), 4000);
+      if (companyPlace) {
+        setPlaceLat(pickedCoord.lat);
+        setPlaceLng(pickedCoord.lng);
+        setHasChangedLocation(true);
+        setActiveTab('location');
+        setSuccessMsg(`📍 Novo ponto no mapa selecionado! (${pickedCoord.lat.toFixed(4)}, ${pickedCoord.lng.toFixed(4)}). Salve para confirmar.`);
+        setTimeout(() => setSuccessMsg(''), 6000);
+      } else {
+        setRegLat(pickedCoord.lat);
+        setRegLng(pickedCoord.lng);
+        setHasPickedCoord(true);
+        setSuccessMsg(`Ponto no mapa definido com sucesso! (${pickedCoord.lat.toFixed(4)}, ${pickedCoord.lng.toFixed(4)})`);
+        setTimeout(() => setSuccessMsg(''), 4000);
+      }
     }
-  }, [pickedCoord]);
+  }, [pickedCoord, companyPlace]);
 
   // Clean all form fields if user chooses to start over
   const handleClearDraft = () => {
@@ -307,6 +324,9 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
       setWebsite(companyPlace.website || '');
       setIsPaused(Boolean(companyPlace.isPaused));
       setPriceRange(companyPlace.priceRange || '$$');
+      setPlaceLat(typeof companyPlace.lat === 'number' ? companyPlace.lat : parseFloat(String(companyPlace.lat)) || -8.0645);
+      setPlaceLng(typeof companyPlace.lng === 'number' ? companyPlace.lng : parseFloat(String(companyPlace.lng)) || -34.9855);
+      setHasChangedLocation(false);
       if (companyPlace.productsOrServices) {
         setProducts(companyPlace.productsOrServices);
       }
@@ -527,7 +547,7 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
     }
   };
 
-  // Save changes to existing company - Requirement 5: Conecte o evento onClick ao Firestore usando setDoc com { merge: true }
+  // Save changes to existing company
   const handleSaveAll = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!companyPlace) return;
@@ -537,26 +557,29 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
     setErrorMsg('');
 
     try {
-      const finalCategoryLabel =
+      const exactCategory =
         category === 'other' && customCategory.trim()
           ? customCategory.trim()
-          : CATEGORY_CONFIG[category]?.name || 'Geral';
+          : customCategory.trim() || subCategory.trim() || CATEGORY_CONFIG[category]?.name || 'Geral';
 
       const activeUserId = currentUser?.uid || currentUser?.id || auth.currentUser?.uid || companyPlace.ownerId || 'empresa_user';
       const companyId = companyPlace.id || `comp-${activeUserId}`;
+
+      const finalLat = typeof placeLat === 'number' ? placeLat : parseFloat(String(placeLat)) || -8.0645;
+      const finalLng = typeof placeLng === 'number' ? placeLng : parseFloat(String(placeLng)) || -34.9855;
 
       const companyData = {
         id: companyId,
         userId: activeUserId,
         name: name.trim() || 'Empresa Sem Nome',
         category: category || 'services',
-        customCategory: category === 'other' && customCategory.trim() ? customCategory.trim() : '',
-        subCategory: subCategory.trim() || finalCategoryLabel || '',
+        customCategory: customCategory.trim() || (category === 'other' ? exactCategory : ''),
+        subCategory: exactCategory,
         address: address.trim() || '',
         neighborhood: neighborhood || 'Curado IV',
         city: city.trim() || 'Recife',
-        lat: typeof companyPlace.lat === 'number' ? companyPlace.lat : parseFloat(String(companyPlace.lat)) || -8.0645,
-        lng: typeof companyPlace.lng === 'number' ? companyPlace.lng : parseFloat(String(companyPlace.lng)) || -34.9855,
+        lat: finalLat,
+        lng: finalLng,
         phone: phone.trim() || '',
         whatsapp: whatsapp.trim() || '',
         hours: hours.trim() || '',
@@ -574,25 +597,9 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
 
       const cleanCompanyData = sanitizeFirestoreData(companyData);
 
-      // 1. Direct Firestore setDoc with merge: true on `companies` collection
-      await setDoc(doc(db, 'companies', companyId), cleanCompanyData, { merge: true });
-      console.log(`[Firestore] Updated companies/${companyId} with merge: true`);
-
-      // 2. Direct Firestore setDoc with merge: true on `places` collection for map compatibility
-      const placeUpdates: Partial<Place> = {
-        ...cleanCompanyData,
-        customCategory: cleanCompanyData.customCategory || '',
-        phone: cleanCompanyData.phone || '',
-        whatsapp: cleanCompanyData.whatsapp || '',
-        hours: cleanCompanyData.hours || '',
-        logoUrl: cleanCompanyData.logoUrl || '',
-        photoUrl: cleanCompanyData.photoUrl || '',
-        imageUrl: cleanCompanyData.imageUrl || '',
-        instagram: cleanCompanyData.instagram || '',
-        website: cleanCompanyData.website || '',
-      };
-      const cleanPlaceUpdates = sanitizeFirestoreData(placeUpdates);
-      await setDoc(doc(db, 'places', companyId), cleanPlaceUpdates, { merge: true });
+      // Save using saveCompanyToFirestore which systematically purges old location records for this user
+      await saveCompanyToFirestore(activeUserId, cleanCompanyData, companyId);
+      console.log(`[Firestore] Company updated & previous locations cleaned for ${activeUserId}`);
 
       if (currentUser && name.trim() !== currentUser.companyName) {
         await updateUserProfile(currentUser.id, { companyName: name.trim() });
@@ -600,11 +607,16 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
 
       const updatedObj: Place = {
         ...companyPlace,
-        ...placeUpdates,
+        ...cleanCompanyData,
+        lat: finalLat,
+        lng: finalLng,
+        customCategory: cleanCompanyData.customCategory || '',
+        subCategory: exactCategory,
       };
 
+      setHasChangedLocation(false);
       onPlaceUpdated(updatedObj);
-      setSuccessMsg('✅ Dados da empresa salvos no banco de dados com sucesso!');
+      setSuccessMsg('✅ Dados e localização da empresa atualizados com sucesso no banco de dados!');
       setTimeout(() => setSuccessMsg(''), 4500);
     } catch (err: any) {
       console.error('Error saving company in Firestore:', err);
@@ -1690,7 +1702,15 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
                       </label>
                       <select
                         value={neighborhood}
-                        onChange={(e) => setNeighborhood(e.target.value)}
+                        onChange={(e) => {
+                          const newNb = e.target.value;
+                          setNeighborhood(newNb);
+                          if (!hasChangedLocation && NEIGHBORHOOD_COORDINATES[newNb]) {
+                            setPlaceLat(NEIGHBORHOOD_COORDINATES[newNb].lat);
+                            setPlaceLng(NEIGHBORHOOD_COORDINATES[newNb].lng);
+                            setHasChangedLocation(true);
+                          }
+                        }}
                         className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-sm text-white focus:outline-none focus:border-lime-400"
                       >
                         {NEIGHBORHOODS.map((b) => (
@@ -2113,39 +2133,76 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
               {/* TAB 4: LOCATION ON MAP */}
               {activeTab === 'location' && companyPlace && (
                 <div className="space-y-4">
-                  <div className="p-5 rounded-2xl bg-slate-800/60 border border-slate-700/60 space-y-3">
-                    <h4 className="text-xs font-bold text-white flex items-center gap-2">
-                      <MapPin className="w-4 h-4 text-lime-400" />
-                      <span>Coordenadas Geográficas no Google Maps</span>
-                    </h4>
-                    <p className="text-xs text-slate-400">
-                      O pino no mapa define exatamente onde os clientes veem seu comércio quando pesquisam no bairro.
+                  <div className="p-5 rounded-2xl bg-slate-800/60 border border-slate-700/60 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                        <MapPin className="w-4 h-4 text-lime-400" />
+                        <span>Coordenadas Geográficas no Google Maps</span>
+                      </h4>
+                      {hasChangedLocation && (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-lime-400 text-slate-950 animate-pulse">
+                          LOCALIZAÇÃO ALTERADA
+                        </span>
+                      )}
+                    </div>
+                    
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      O pino no mapa define exatamente onde os clientes veem sua empresa quando pesquisam no bairro.
+                      Ao mudar de endereço, o pino antigo é automaticamente removido do mapa.
                     </p>
 
-                    <div className="grid grid-cols-2 gap-3 p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono">
+                    <div className="grid grid-cols-2 gap-3 p-3.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono">
                       <div>
-                        <span className="text-slate-500 block">Latitude:</span>
-                        <span className="text-lime-400 font-bold">{companyPlace.lat.toFixed(5)}</span>
+                        <span className="text-slate-400 text-[11px] block">Latitude Atual:</span>
+                        <span className="text-lime-400 font-bold text-sm">{placeLat.toFixed(5)}</span>
                       </div>
                       <div>
-                        <span className="text-slate-500 block">Longitude:</span>
-                        <span className="text-lime-400 font-bold">{companyPlace.lng.toFixed(5)}</span>
+                        <span className="text-slate-400 text-[11px] block">Longitude Atual:</span>
+                        <span className="text-lime-400 font-bold text-sm">{placeLng.toFixed(5)}</span>
                       </div>
                     </div>
 
-                    {onStartPickingLocation && (
+                    {hasChangedLocation && (
+                      <div className="p-3 rounded-xl bg-lime-400/10 border border-lime-400/40 text-lime-300 text-xs flex items-center gap-2">
+                        <Check className="w-4 h-4 text-lime-400 shrink-0" />
+                        <span>Novo ponto selecionado no mapa! Clique abaixo para confirmar e remover o local antigo.</span>
+                      </div>
+                    )}
+
+                    <div className="flex flex-col sm:flex-row gap-2.5 pt-1">
+                      {onStartPickingLocation && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onClose();
+                            onStartPickingLocation();
+                          }}
+                          className="flex-1 py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-colors cursor-pointer"
+                        >
+                          <Compass className="w-4 h-4" />
+                          <span>Selecionar Novo Ponto no Mapa</span>
+                        </button>
+                      )}
+
                       <button
                         type="button"
-                        onClick={() => {
-                          onClose();
-                          onStartPickingLocation();
-                        }}
-                        className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-colors cursor-pointer"
+                        disabled={saving}
+                        onClick={() => handleSaveAll()}
+                        className="py-3 px-5 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-lime-400/20 cursor-pointer disabled:opacity-50 transition-all"
                       >
-                        <Compass className="w-4 h-4" />
-                        <span>Ajustar Ponto Clicando no Mapa</span>
+                        {saving ? (
+                          <>
+                            <div className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                            <span>Salvando Local...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Save className="w-4 h-4" />
+                            <span>Salvar Nova Localização</span>
+                          </>
+                        )}
                       </button>
-                    )}
+                    </div>
                   </div>
                 </div>
               )}

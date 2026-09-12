@@ -5,6 +5,7 @@ import {
   setDoc,
   getDoc,
   getDocs,
+  deleteDoc,
   onSnapshot,
   query,
   where,
@@ -12,6 +13,7 @@ import {
   sanitizeFirestoreData,
 } from '../lib/firebase';
 import { Company, Place, CategoryType } from '../types';
+import { CATEGORY_CONFIG } from '../data/initialPlaces';
 
 export const COMPANIES_COLLECTION = 'companies';
 
@@ -19,11 +21,23 @@ export const COMPANIES_COLLECTION = 'companies';
  * Convert a Company document into a Place object suitable for Map, Cards and Modals
  */
 export function companyToPlace(company: Company): Place {
+  const exactCategory =
+    company.customCategory?.trim() ||
+    (company.subCategory &&
+    company.subCategory !== 'Geral' &&
+    company.subCategory !== 'Empresa Cadastrada' &&
+    company.subCategory !== 'Empresa Local'
+      ? company.subCategory.trim()
+      : '') ||
+    (CATEGORY_CONFIG[company.category as CategoryType]?.name) ||
+    company.category ||
+    'Comércio Local';
+
   return {
     id: company.id,
     name: company.name || 'Empresa',
     category: (company.category as CategoryType) || 'services',
-    subCategory: company.subCategory || company.category || 'Empresa Local',
+    subCategory: exactCategory,
     customCategory: company.customCategory || '',
     description: company.description || '',
     address: company.address || '',
@@ -228,11 +242,35 @@ export async function saveCompanyToFirestore(
   await setDoc(compDocRef, cleanPayload, { merge: true });
   console.log(`[Firestore] Company successfully saved in 'companies/${companyId}' with merge: true!`);
 
+  // Clean up any old duplicate records for this user so it completely vanishes from previous locations
+  try {
+    const qComp = query(collection(db, COMPANIES_COLLECTION), where('userId', '==', userId));
+    const compSnaps = await getDocs(qComp);
+    for (const snap of compSnaps.docs) {
+      if (snap.id !== companyId) {
+        await deleteDoc(doc(db, COMPANIES_COLLECTION, snap.id));
+        console.log(`[Firestore] Removed old location company record ${snap.id}`);
+      }
+    }
+  } catch (cleanCompErr) {
+    console.warn('[Firestore] Old company cleanup notice:', cleanCompErr);
+  }
+
   // Also sync to `places` collection for full backward compatibility across all modules
   try {
     const placePayload = sanitizeFirestoreData(companyToPlace(cleanPayload as Company));
     await setDoc(doc(db, 'places', companyId), placePayload, { merge: true });
     console.log(`[Firestore] Mirrored company to 'places/${companyId}'`);
+
+    // Clean up old place records owned by this user so old pins disappear from map
+    const qPlace = query(collection(db, 'places'), where('ownerId', '==', userId));
+    const placeSnaps = await getDocs(qPlace);
+    for (const snap of placeSnaps.docs) {
+      if (snap.id !== companyId) {
+        await deleteDoc(doc(db, 'places', snap.id));
+        console.log(`[Firestore] Removed old location place record ${snap.id}`);
+      }
+    }
   } catch (placeSyncErr) {
     console.warn('[Firestore] Note: places mirror sync notice:', placeSyncErr);
   }

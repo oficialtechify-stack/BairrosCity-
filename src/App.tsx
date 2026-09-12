@@ -123,38 +123,79 @@ export default function App() {
     const unsubscribeCompanies = subscribeCompanies(
       (companiesList) => {
         console.log(`[Firestore] Recebidas ${companiesList.length} empresas da coleção 'companies'.`);
-        const placesFromCompanies: Place[] = companiesList.map((c) => ({
-          id: c.id,
-          name: c.name,
-          category: (c.category as CategoryType) || 'restaurant',
-          customCategory: c.customCategory,
-          subCategory: c.subCategory || 'Empresa Cadastrada',
-          description: c.description || 'Empresa local verificada no BairrosCity',
-          address: c.address,
-          neighborhood: c.neighborhood,
-          city: c.city || 'Recife',
-          lat: c.lat,
-          lng: c.lng,
-          whatsapp: c.whatsapp,
-          phone: c.phone,
-          instagram: c.instagram,
-          website: c.website,
-          hours: c.hours,
-          imageUrl: c.photoUrl || c.logoUrl || c.imageUrl || '',
-          logoUrl: c.logoUrl || c.photoUrl || '',
-          isRegisteredCompany: true,
-          priceRange: (c.priceRange as any) || '$$',
-          tags: [c.category, c.neighborhood, 'Empresa Cadastrada', 'BairrosCity'],
-          ownerId: c.userId,
-          ownerName: c.name,
-          ownerEmail: '',
-          productsOrServices: c.productsOrServices || [],
-          rating: c.rating || 5.0,
-          reviewsCount: c.reviewsCount || 1,
-          reviews: c.reviews || [],
-          createdAt: c.createdAt,
-          isPaused: Boolean(c.isPaused),
-        }));
+
+        // Sort newest updated first
+        const sortedCompanies = [...companiesList].sort((a, b) =>
+          (b.updatedAt || b.createdAt || '').localeCompare(a.updatedAt || a.createdAt || '')
+        );
+
+        // Deduplicate companies so old location pins disappear immediately
+        const seenOwners = new Set<string>();
+        const seenNames = new Set<string>();
+        const deduplicatedCompanies: Company[] = [];
+
+        for (const c of sortedCompanies) {
+          const ownerKey = c.userId ? `user-${c.userId}` : '';
+          const nameKey = (c.name || '').trim().toLowerCase();
+
+          if (ownerKey && seenOwners.has(ownerKey)) {
+            continue; // Skip duplicate older record from previous location
+          }
+          if (nameKey && nameKey !== 'empresa' && nameKey !== 'nova empresa' && seenNames.has(nameKey)) {
+            continue; // Skip duplicate older record with same name
+          }
+
+          if (ownerKey) seenOwners.add(ownerKey);
+          if (nameKey) seenNames.add(nameKey);
+          deduplicatedCompanies.push(c);
+        }
+
+        const placesFromCompanies: Place[] = deduplicatedCompanies.map((c) => {
+          const exactCat =
+            c.customCategory?.trim() ||
+            (c.subCategory &&
+            c.subCategory !== 'Geral' &&
+            c.subCategory !== 'Empresa Cadastrada' &&
+            c.subCategory !== 'Empresa Local'
+              ? c.subCategory.trim()
+              : '') ||
+            (CATEGORY_CONFIG[c.category as CategoryType]?.name) ||
+            c.category ||
+            'Comércio Local';
+
+          return {
+            id: c.id,
+            name: c.name,
+            category: (c.category as CategoryType) || 'restaurant',
+            customCategory: c.customCategory || '',
+            subCategory: exactCat,
+            description: c.description || 'Empresa local verificada no BairrosCity',
+            address: c.address,
+            neighborhood: c.neighborhood,
+            city: c.city || 'Recife',
+            lat: typeof c.lat === 'number' ? c.lat : parseFloat(String(c.lat)) || -8.0645,
+            lng: typeof c.lng === 'number' ? c.lng : parseFloat(String(c.lng)) || -34.9855,
+            whatsapp: c.whatsapp,
+            phone: c.phone,
+            instagram: c.instagram,
+            website: c.website,
+            hours: c.hours,
+            imageUrl: c.photoUrl || c.logoUrl || c.imageUrl || '',
+            logoUrl: c.logoUrl || c.photoUrl || '',
+            isRegisteredCompany: true,
+            priceRange: (c.priceRange as any) || '$$',
+            tags: [c.category, c.neighborhood, exactCat, 'Empresa Cadastrada', 'BairrosCity'],
+            ownerId: c.userId,
+            ownerName: c.name,
+            ownerEmail: '',
+            productsOrServices: c.productsOrServices || [],
+            rating: c.rating || 5.0,
+            reviewsCount: c.reviewsCount || 1,
+            reviews: c.reviews || [],
+            createdAt: c.createdAt,
+            isPaused: Boolean(c.isPaused),
+          };
+        });
 
         if (placesFromCompanies.length > 0) {
           setPlaces(placesFromCompanies);
@@ -244,8 +285,17 @@ export default function App() {
     }
   }, [savedPlaceIds]);
 
-  // Request real browser GPS location with continuous real-time movement tracking
+  // Request real browser GPS location OR center on user's company if in company role
   const handleRequestLocation = () => {
+    const isCompany = currentUser?.role === 'empresa' || currentUser?.role === 'company';
+    if (isCompany && userCompanyPlace) {
+      setMapCenterCoord({ lat: userCompanyPlace.lat, lng: userCompanyPlace.lng, zoom: 17 });
+      setCurrentView('map');
+      setGpsToast(`Centralizado na sua empresa: ${userCompanyPlace.name}`);
+      setTimeout(() => setGpsToast(null), 3500);
+      return;
+    }
+
     recenter();
     if (userLocation) {
       setMapCenterCoord({ lat: userLocation.lat, lng: userLocation.lng, zoom: 17 });
@@ -523,6 +573,9 @@ export default function App() {
                 setIsRegisterOpen(true);
               }
             }}
+            onOpenRegisterEvent={() => {
+              setIsEventRegisterOpen(true);
+            }}
             onOpenAuth={handleGoogleDirectLogin}
             onGoogleSignIn={handleGoogleDirectLogin}
             currentUser={currentUser}
@@ -717,6 +770,8 @@ export default function App() {
                       setMapCenterCoord({ lat: place.lat, lng: place.lng, zoom: 16 });
                     }}
                     userLocation={userLocation}
+                    isCompanyUser={Boolean(currentUser?.role === 'empresa' || currentUser?.role === 'company')}
+                    companyPlace={userCompanyPlace}
                     distanceFilter={distanceFilter}
                     selectingLocation={selectingLocation}
                     selectedCoord={pickedCoord}
@@ -762,6 +817,8 @@ export default function App() {
                   setIsSidePanelOpen(true);
                 }}
                 userLocation={userLocation}
+                isCompanyUser={Boolean(currentUser?.role === 'empresa' || currentUser?.role === 'company')}
+                companyPlace={userCompanyPlace}
                 distanceFilter={distanceFilter}
                 selectingLocation={selectingLocation}
                 selectedCoord={pickedCoord}

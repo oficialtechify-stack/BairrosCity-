@@ -48,6 +48,7 @@ interface LandingPageProps {
   onNavigateToMap: (place?: Place) => void;
   onNavigateToBairrosCity: (neighborhood?: string) => void;
   onOpenRegisterCompany: () => void;
+  onOpenRegisterEvent?: () => void;
   onOpenAuth: () => void;
   currentUser: UserProfile | null;
   onLogout?: () => void;
@@ -60,6 +61,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   onNavigateToMap,
   onNavigateToBairrosCity,
   onOpenRegisterCompany,
+  onOpenRegisterEvent,
   onOpenAuth,
   currentUser,
   onLogout,
@@ -137,14 +139,27 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </button>
             )}
 
-            <button
-              type="button"
-              onClick={onOpenRegisterCompany}
-              className="px-4 py-2.5 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 font-black text-xs tracking-wider transition-all shadow-lg shadow-lime-400/25 flex items-center gap-2 cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
-            >
-              <Building2 className="w-3.5 h-3.5" />
-              <span>{currentUser?.role === 'empresa' ? 'PAINEL DA EMPRESA' : 'CADASTRAR EMPRESA'}</span>
-            </button>
+            {currentUser?.role === 'empresa' ? (
+              <button
+                type="button"
+                id="btn-landing-company-panel"
+                onClick={onOpenRegisterCompany}
+                className="px-4 py-2.5 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 font-black text-xs tracking-wider transition-all shadow-lg shadow-lime-400/25 flex items-center gap-2 cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <Building2 className="w-3.5 h-3.5" />
+                <span>PAINEL DA EMPRESA</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                id="btn-landing-register-event"
+                onClick={onOpenRegisterEvent || onOpenRegisterCompany}
+                className="px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-black text-xs tracking-wider transition-all shadow-lg shadow-purple-600/25 flex items-center gap-2 cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                <span>REGISTRAR EVENTOS</span>
+              </button>
+            )}
           </div>
 
         </div>
@@ -331,48 +346,94 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
         <div className="grid md:grid-cols-2 gap-8">
           
-          {/* Card: Para Empresas */}
-          <div className="p-8 rounded-3xl bg-slate-900/80 border border-slate-800 relative hover:border-lime-400/50 transition-all shadow-xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-lime-400/10 text-lime-400 border border-lime-400/30 text-xs font-bold mb-4">
-              <Building2 className="w-3.5 h-3.5" />
-              <span>PARA EMPRESAS & COMERCIANTES</span>
+          {/* Card: Para Empresas ou Eventos do Morador */}
+          {currentUser?.role === 'morador' ? (
+            <div className="p-8 rounded-3xl bg-slate-900/80 border border-slate-800 relative hover:border-purple-400/50 transition-all shadow-xl">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-400/10 text-purple-400 border border-purple-400/30 text-xs font-bold mb-4">
+                <Calendar className="w-3.5 h-3.5" />
+                <span>EVENTOS & ENCONTROS NO BAIRRO</span>
+              </div>
+
+              <h3 className="text-2xl font-black text-white mb-3">
+                Divulgue Eventos Comunitários Gratuitamente
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-300 mb-6">
+                Como morador, publique feiras livres, torneios, celebrações culturais ou reuniões comunitárias no seu bairro com localização no mapa.
+              </p>
+
+              <ul className="space-y-3 mb-8 text-xs text-slate-300">
+                <li className="flex items-center gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-purple-400 shrink-0" />
+                  <span>Publicação instantânea vinculada ao seu bairro</span>
+                </li>
+                <li className="flex items-center gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-purple-400 shrink-0" />
+                  <span>Destaque com ícone de evento no mapa regional</span>
+                </li>
+                <li className="flex items-center gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-purple-400 shrink-0" />
+                  <span>Visibilidade para todos os vizinhos da comunidade</span>
+                </li>
+                <li className="flex items-center gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-purple-400 shrink-0" />
+                  <span>Acesso direto pela aba BairrosCity do seu bairro</span>
+                </li>
+              </ul>
+
+              <button
+                type="button"
+                id="btn-card-register-event"
+                onClick={onOpenRegisterEvent || onOpenRegisterCompany}
+                className="w-full py-3.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-black text-xs tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-purple-600/20"
+              >
+                <Plus className="w-4 h-4" />
+                <span>REGISTRAR EVENTO NO MEU BAIRRO</span>
+              </button>
             </div>
+          ) : (
+            <div className="p-8 rounded-3xl bg-slate-900/80 border border-slate-800 relative hover:border-lime-400/50 transition-all shadow-xl">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-lime-400/10 text-lime-400 border border-lime-400/30 text-xs font-bold mb-4">
+                <Building2 className="w-3.5 h-3.5" />
+                <span>PARA EMPRESAS & COMERCIANTES</span>
+              </div>
 
-            <h3 className="text-2xl font-black text-white mb-3">
-              Divulgue sua Empresa no Mapa sem Custos
-            </h3>
-            <p className="text-xs sm:text-sm text-slate-300 mb-6">
-              Tenha uma página própria na plataforma com endereço, horário de funcionamento, fotos, botão direto de WhatsApp e localização no Google Maps.
-            </p>
+              <h3 className="text-2xl font-black text-white mb-3">
+                Divulgue sua Empresa no Mapa sem Custos
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-300 mb-6">
+                Tenha uma página própria na plataforma com endereço, horário de funcionamento, fotos, botão direto de WhatsApp e localização no Google Maps.
+              </p>
 
-            <ul className="space-y-3 mb-8 text-xs text-slate-300">
-              <li className="flex items-center gap-2.5">
-                <CheckCircle2 className="w-4 h-4 text-lime-400 shrink-0" />
-                <span>Cadastro simplificado aberto para comércios, restaurantes e serviços</span>
-              </li>
-              <li className="flex items-center gap-2.5">
-                <CheckCircle2 className="w-4 h-4 text-lime-400 shrink-0" />
-                <span>Pino e ícone temático de categoria destacados no mapa regional</span>
-              </li>
-              <li className="flex items-center gap-2.5">
-                <CheckCircle2 className="w-4 h-4 text-lime-400 shrink-0" />
-                <span>Receba avaliações e estrelas de clientes que frequentam seu local</span>
-              </li>
-              <li className="flex items-center gap-2.5">
-                <CheckCircle2 className="w-4 h-4 text-lime-400 shrink-0" />
-                <span>Publique comunicados e eventos diretamente no seu bairro</span>
-              </li>
-            </ul>
+              <ul className="space-y-3 mb-8 text-xs text-slate-300">
+                <li className="flex items-center gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-lime-400 shrink-0" />
+                  <span>Cadastro simplificado aberto para comércios, restaurantes e serviços</span>
+                </li>
+                <li className="flex items-center gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-lime-400 shrink-0" />
+                  <span>Pino e ícone temático de categoria destacados no mapa regional</span>
+                </li>
+                <li className="flex items-center gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-lime-400 shrink-0" />
+                  <span>Receba avaliações e estrelas de clientes que frequentam seu local</span>
+                </li>
+                <li className="flex items-center gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-lime-400 shrink-0" />
+                  <span>Publique comunicados e eventos diretamente no seu bairro</span>
+                </li>
+              </ul>
 
-            <button
-              type="button"
-              onClick={onOpenRegisterCompany}
-              className="w-full py-3.5 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 font-black text-xs tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-lime-500/20"
-            >
-              <Plus className="w-4 h-4" />
-              <span>CADASTRAR MINHA EMPRESA NO MAPA</span>
-            </button>
-          </div>
+              <button
+                type="button"
+                id="btn-card-register-company"
+                onClick={onOpenRegisterCompany}
+                className="w-full py-3.5 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 font-black text-xs tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-lime-500/20"
+              >
+                <Plus className="w-4 h-4" />
+                <span>{currentUser?.role === 'empresa' ? 'ACESSAR MEU PAINEL DE EMPRESA' : 'CADASTRAR MINHA EMPRESA NO MAPA'}</span>
+              </button>
+            </div>
+          )}
 
           {/* Card: Para Moradores */}
           <div className="p-8 rounded-3xl bg-slate-900/80 border border-slate-800 relative hover:border-blue-400/50 transition-all shadow-xl">

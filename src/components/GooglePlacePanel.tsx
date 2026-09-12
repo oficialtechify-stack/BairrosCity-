@@ -255,7 +255,12 @@ export const GooglePlacePanel: React.FC<GooglePlacePanelProps> = ({
                         CATEGORY_CONFIG[selectedPlace.category]?.color || '#ea580c',
                     }}
                   />
-                  <span>{selectedPlace.subCategory}</span>
+                  <span>
+                    {selectedPlace.customCategory?.trim() ||
+                      selectedPlace.subCategory ||
+                      CATEGORY_CONFIG[selectedPlace.category]?.name ||
+                      selectedPlace.category}
+                  </span>
                 </div>
 
                 {selectedPlace.isEvent && (
@@ -269,7 +274,7 @@ export const GooglePlacePanel: React.FC<GooglePlacePanelProps> = ({
               {/* Place Title & Rating */}
               <div className="p-4 border-b border-slate-100">
                 {/* If place is owned by current user */}
-                {(selectedPlace.ownerId === currentUser?.id || (currentUser?.role === 'empresa' && selectedPlace.id === userCompanyPlace?.id)) && (
+                {currentUser && currentUser.role === 'empresa' && (selectedPlace.ownerId === currentUser.id || selectedPlace.id === userCompanyPlace?.id) && (
                   <div className="mb-3 p-2.5 rounded-xl bg-slate-900 border border-lime-400/40 text-white flex items-center justify-between shadow-sm">
                     <div className="flex items-center gap-2 min-w-0">
                       <Building2 className="w-4 h-4 text-lime-400 shrink-0" />
@@ -350,8 +355,8 @@ export const GooglePlacePanel: React.FC<GooglePlacePanelProps> = ({
                   {selectedPlace.description}
                 </p>
 
-                {/* Company Owner Administration Banner */}
-                {currentUser && (currentUser.id === selectedPlace.ownerId || (currentUser.role === 'empresa' && currentUser.companyName && selectedPlace.name && currentUser.companyName.toLowerCase() === selectedPlace.name.toLowerCase())) && (
+                {/* Company Owner Administration Banner - Only for company role */}
+                {currentUser && currentUser.role === 'empresa' && (currentUser.id === selectedPlace.ownerId || (currentUser.companyName && selectedPlace.name && currentUser.companyName.toLowerCase() === selectedPlace.name.toLowerCase())) && (
                   <div className="mt-3 p-3 rounded-2xl bg-lime-50 border border-lime-300 flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <div className="w-8 h-8 rounded-xl bg-lime-400/30 text-lime-700 flex items-center justify-center">
@@ -929,7 +934,7 @@ export const GooglePlacePanel: React.FC<GooglePlacePanelProps> = ({
                     <div className="flex-1 min-w-0">
                       <h3 className="text-sm font-black text-white truncate">{userCompanyPlace.name}</h3>
                       <p className="text-[11px] text-slate-300 truncate">
-                        {userCompanyPlace.neighborhood} • {userCompanyPlace.subCategory || userCompanyPlace.category}
+                        {userCompanyPlace.neighborhood} • {userCompanyPlace.customCategory?.trim() || userCompanyPlace.subCategory || CATEGORY_CONFIG[userCompanyPlace.category]?.name || userCompanyPlace.category}
                       </p>
                       <div className="flex items-center gap-3 mt-1 text-[10px] text-slate-400">
                         <span>👁️ {userCompanyPlace.viewsCount || 0} visitas</span>
@@ -1059,7 +1064,7 @@ export const GooglePlacePanel: React.FC<GooglePlacePanelProps> = ({
                         </div>
 
                         <div className="text-[11px] text-slate-500 mt-1 truncate">
-                          {place.subCategory} • {place.neighborhood}
+                          {place.customCategory?.trim() || place.subCategory || CATEGORY_CONFIG[place.category]?.name || place.category} • {place.neighborhood}
                         </div>
 
                         {place.hours && (

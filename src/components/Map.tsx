@@ -11,7 +11,8 @@ import {
   Minus,
   Check,
   Compass,
-  Moon
+  Moon,
+  Building2
 } from 'lucide-react';
 import { StreetViewThumbnail } from './StreetViewThumbnail';
 import { StreetViewNode } from '../data/streetViewData';
@@ -23,6 +24,8 @@ interface MapProps {
   selectedPlace: Place | null;
   onSelectPlace: (place: Place) => void;
   userLocation: UserLocation | null;
+  isCompanyUser?: boolean;
+  companyPlace?: Place | null;
   distanceFilter: DistanceFilter;
   selectingLocation: boolean;
   selectedCoord: { lat: number; lng: number } | null;
@@ -63,6 +66,8 @@ export const MapComponent: React.FC<MapProps> = ({
   selectedPlace,
   onSelectPlace,
   userLocation,
+  isCompanyUser = false,
+  companyPlace = null,
   distanceFilter,
   selectingLocation,
   selectedCoord,
@@ -100,8 +105,12 @@ export const MapComponent: React.FC<MapProps> = ({
   const [layersMenuOpen, setLayersMenuOpen] = useState<boolean>(false);
   const [mapReady, setMapReady] = useState<boolean>(false);
 
-  // Initial center set to Curado / Recife (as displayed in user screenshot)
-  const initialCenter: [number, number] = userLocation ? [userLocation.lat, userLocation.lng] : [-8.0645, -34.9855];
+  // Initial center: if company user, center immediately on company location!
+  const initialCenter: [number, number] = (isCompanyUser && companyPlace)
+    ? [companyPlace.lat, companyPlace.lng]
+    : userLocation
+    ? [userLocation.lat, userLocation.lng]
+    : [-8.0645, -34.9855];
   const initialZoom = 16;
 
   // Initialize Map
@@ -492,6 +501,20 @@ export const MapComponent: React.FC<MapProps> = ({
     const map = mapRef.current;
     if (!map || !mapReady) return;
 
+    // Se o usuário for empresa: NUNCA exibir o marcador/círculo pessoal de GPS do usuário no mapa!
+    // Apenas a empresa dele deve ser exibida no mapa!
+    if (isCompanyUser) {
+      if (userMarkerRef.current) {
+        userMarkerRef.current.remove();
+        userMarkerRef.current = null;
+      }
+      if (radiusCircleRef.current) {
+        radiusCircleRef.current.remove();
+        radiusCircleRef.current = null;
+      }
+      return;
+    }
+
     // In Street View mode, synchronize the marker to the Street View position & heading!
     const targetLat = streetViewActive && streetViewNode ? streetViewNode.lat : userLocation?.lat;
     const targetLng = streetViewActive && streetViewNode ? streetViewNode.lng : userLocation?.lng;
@@ -718,6 +741,17 @@ export const MapComponent: React.FC<MapProps> = ({
         zIndexOffset: isSelected ? 1200 : (place.isRegisteredCompany ? 500 : 100),
       }).addTo(markersGroup);
 
+      const displayCategory =
+        place.customCategory?.trim() ||
+        (place.subCategory &&
+        place.subCategory !== 'Geral' &&
+        place.subCategory !== 'Empresa Cadastrada' &&
+        place.subCategory !== 'Empresa Local'
+          ? place.subCategory
+          : '') ||
+        config.name ||
+        place.category;
+
       const popupHtml = `
         <div style="font-family: inherit; width: 220px; padding: 4px; color: #0f172a;">
           <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
@@ -738,7 +772,7 @@ export const MapComponent: React.FC<MapProps> = ({
                 ${place.name}
               </div>
               <div style="font-size: 11px; color: #64748b; margin-top: 2px;">
-                ${place.subCategory || config.name}
+                ${displayCategory}
               </div>
               <div style="font-size: 10px; font-weight: 700; color: #16a34a; margin-top: 2px;">
                 ⭐ ${place.rating || 5.0} • ${place.neighborhood || 'Bairro'}
@@ -779,10 +813,12 @@ export const MapComponent: React.FC<MapProps> = ({
     mapRef.current?.zoomOut();
   };
 
-  // Reset North rotation (compass click)
+  // Reset North rotation (compass click) / Centralizar na Empresa
   const handleCompassClick = () => {
     if (mapRef.current) {
-      if (userLocation) {
+      if (isCompanyUser && companyPlace) {
+        mapRef.current.flyTo([companyPlace.lat, companyPlace.lng], 17, { duration: 0.8 });
+      } else if (userLocation && !isCompanyUser) {
         mapRef.current.flyTo([userLocation.lat, userLocation.lng], 16, { duration: 0.8 });
       } else {
         mapRef.current.flyTo(initialCenter, initialZoom, { duration: 0.8 });
@@ -942,24 +978,36 @@ export const MapComponent: React.FC<MapProps> = ({
           </div>
         </button>
 
-        {/* 4. Google Maps Real-Time GPS Follow Button (Target Crosshair with Blue Dot) */}
+        {/* 4. Google Maps Real-Time GPS Follow / Centralizar Empresa Button */}
         <button
           id="google-maps-gps-btn"
           type="button"
-          onClick={onRequestUserLocation}
+          onClick={() => {
+            if (isCompanyUser && companyPlace && mapRef.current) {
+              mapRef.current.flyTo([companyPlace.lat, companyPlace.lng], 17, { duration: 0.8 });
+            } else {
+              onRequestUserLocation();
+            }
+          }}
           className={`w-11 h-11 rounded-full shadow-xl border flex items-center justify-center transition-all active:scale-90 cursor-pointer backdrop-blur-md ${
-            isTracking && isFollowing
+            isCompanyUser
+              ? 'bg-lime-400 hover:bg-lime-300 text-slate-950 border-lime-500 shadow-lime-500/30'
+              : isTracking && isFollowing
               ? 'bg-blue-600 text-white border-blue-400 shadow-blue-500/40 ring-4 ring-blue-500/20'
               : 'bg-slate-900/90 text-slate-200 border-slate-700/80 hover:bg-slate-800'
           }`}
-          title="Minha Posição em Tempo Real (Seguir no Mapa)"
+          title={isCompanyUser && companyPlace ? `Centralizar na minha empresa (${companyPlace.name})` : "Minha Posição em Tempo Real (Seguir no Mapa)"}
         >
-          <div className="relative flex items-center justify-center">
-            <Navigation className={`w-5 h-5 ${isTracking && isFollowing ? 'fill-white text-white' : 'text-slate-300'}`} />
-            {isTracking && isFollowing && (
-              <div className="absolute w-2 h-2 rounded-full bg-lime-400 -top-1 -right-1 animate-ping"></div>
-            )}
-          </div>
+          {isCompanyUser ? (
+            <Building2 className="w-5 h-5 text-slate-950" />
+          ) : (
+            <div className="relative flex items-center justify-center">
+              <Navigation className={`w-5 h-5 ${isTracking && isFollowing ? 'fill-white text-white' : 'text-slate-300'}`} />
+              {isTracking && isFollowing && (
+                <div className="absolute w-2 h-2 rounded-full bg-lime-400 -top-1 -right-1 animate-ping"></div>
+              )}
+            </div>
+          )}
         </button>
 
         {/* 6. Directions / Rotas Button (Cyan / Teal Rounded Square with Arrow, matching Google Maps) */}
