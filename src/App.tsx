@@ -18,8 +18,8 @@ import { AdminPanelModal } from './components/AdminPanelModal';
 import { LoginGate } from './components/LoginGate';
 import { GoogleMapsMobileNav } from './components/GoogleMapsMobileNav';
 import { useRealtimeLocation } from './hooks/useRealtimeLocation';
-import { subscribePlaces, createPlaceInFirestore, addReviewToFirestore } from './services/placesService';
-import { subscribeCompanies } from './services/companiesService';
+import { subscribePlaces, createPlaceInFirestore, addReviewToFirestore, deletePlaceFromFirestore } from './services/placesService';
+import { subscribeCompanies, deleteCompanyFromFirestore } from './services/companiesService';
 import { auth, db, signOut, onAuthStateChanged, getDoc, doc } from './lib/firebase';
 import { loginWithGoogle } from './services/authService';
 import { Home, Users, MapPin, Plus, Navigation, LogIn, CheckCircle2, LogOut } from 'lucide-react';
@@ -96,6 +96,7 @@ export default function App() {
   const [selectingLocation, setSelectingLocation] = useState<boolean>(false);
   const [pickedCoord, setPickedCoord] = useState<{ lat: number; lng: number } | null>(null);
   const [pickingForTarget, setPickingForTarget] = useState<'register' | 'companyManager'>('register');
+  const [companyManagerInitialTab, setCompanyManagerInitialTab] = useState<'overview' | 'details' | 'products' | 'location'>('details');
 
   // Real-time GPS User Location & Walking Tracker
   const {
@@ -407,15 +408,43 @@ export default function App() {
     setSelectingLocation(true);
     setCurrentView('map');
     setIsSidePanelOpen(false);
+    setGpsToast('📍 Clique no mapa exatamente onde sua empresa está localizada.');
+    setTimeout(() => setGpsToast(null), 4000);
   };
 
   const handleCoordSelected = (coord: { lat: number; lng: number }) => {
     setPickedCoord(coord);
     setSelectingLocation(false);
     if (pickingForTarget === 'companyManager') {
+      setCompanyManagerInitialTab('location');
       setIsCompanyManagerOpen(true);
+      setGpsToast('📍 Ponto selecionado! Clique em Salvar Nova Localização.');
+      setTimeout(() => setGpsToast(null), 3500);
     } else {
       setIsRegisterOpen(true);
+    }
+  };
+
+  const handleOpenCompanyManager = (tab: 'overview' | 'details' | 'products' | 'location' = 'details') => {
+    setCompanyManagerInitialTab(tab);
+    setIsCompanyManagerOpen(true);
+  };
+
+  const handleDeletePlace = async (placeId: string) => {
+    try {
+      const activeUserId = currentUser?.uid || currentUser?.id || auth.currentUser?.uid;
+      await deleteCompanyFromFirestore(placeId, activeUserId);
+      await deletePlaceFromFirestore(placeId);
+      setPlaces((prev) => prev.filter((p) => p.id !== placeId));
+      if (selectedPlace?.id === placeId) {
+        setSelectedPlace(null);
+      }
+      setGpsToast('Empresa excluída com sucesso do mapa.');
+      setTimeout(() => setGpsToast(null), 3500);
+    } catch (err: any) {
+      console.error('Error deleting place:', err);
+      setGpsToast('Erro ao excluir empresa: ' + (err?.message || 'Tente novamente.'));
+      setTimeout(() => setGpsToast(null), 4000);
     }
   };
 
@@ -723,7 +752,9 @@ export default function App() {
               savedPlaceIds={savedPlaceIds}
               onToggleSavePlace={handleToggleSavePlace}
               currentUser={currentUser}
-              onOpenCompanyManager={() => setIsCompanyManagerOpen(true)}
+              onOpenCompanyManager={() => handleOpenCompanyManager('details')}
+              onEditCompany={(place, tab) => handleOpenCompanyManager(tab || 'details')}
+              onDeleteCompany={async (place) => handleDeletePlace(place.id)}
               userCompanyPlace={userCompanyPlace}
             />
           )}
@@ -973,6 +1004,7 @@ export default function App() {
         <CompanyManagerModal
           isOpen={isCompanyManagerOpen}
           onClose={() => setIsCompanyManagerOpen(false)}
+          initialTab={companyManagerInitialTab}
           currentUser={currentUser}
           companyPlace={userCompanyPlace}
           onPlaceUpdated={(updated) => {
@@ -980,6 +1012,14 @@ export default function App() {
             if (selectedPlace?.id === updated.id) {
               setSelectedPlace(updated);
             }
+          }}
+          onPlaceDeleted={(deletedId) => {
+            setPlaces((prev) => prev.filter((p) => p.id !== deletedId));
+            if (selectedPlace?.id === deletedId) {
+              setSelectedPlace(null);
+            }
+            setGpsToast('Empresa excluída com sucesso do mapa.');
+            setTimeout(() => setGpsToast(null), 3500);
           }}
           onPlaceCreated={(newPlace) => {
             setPlaces((prev) => [newPlace, ...prev]);

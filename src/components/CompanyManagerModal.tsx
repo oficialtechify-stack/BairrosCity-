@@ -40,7 +40,7 @@ import {
 } from '../services/placesService';
 import { updateUserProfile, loginWithGoogle } from '../services/authService';
 import { uploadCompanyImage } from '../services/storageService';
-import { saveCompanyToFirestore } from '../services/companiesService';
+import { saveCompanyToFirestore, deleteCompanyFromFirestore } from '../services/companiesService';
 import { db, doc, setDoc, auth, sanitizeFirestoreData } from '../lib/firebase';
 
 const cleanInitialImage = (url?: string | null): string => {
@@ -71,8 +71,10 @@ interface CompanyManagerModalProps {
   onClose: () => void;
   currentUser: UserProfile | null;
   companyPlace: Place | null;
+  initialTab?: 'overview' | 'details' | 'products' | 'location';
   onPlaceUpdated: (updatedPlace: Place) => void;
   onPlaceCreated?: (newPlace: Place) => void;
+  onPlaceDeleted?: (placeId: string) => void;
   onUserUpdated?: (updatedUser: UserProfile) => void;
   onStartPickingLocation?: () => void;
   onViewOnMap?: (place: Place) => void;
@@ -86,8 +88,10 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
   onClose,
   currentUser,
   companyPlace,
+  initialTab,
   onPlaceUpdated,
   onPlaceCreated,
+  onPlaceDeleted,
   onUserUpdated,
   onStartPickingLocation,
   onViewOnMap,
@@ -95,7 +99,11 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
   onOpenRegisterModal,
   pickedCoord,
 }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'details' | 'products' | 'location'>('products');
+  const [activeTab, setActiveTab] = useState<'overview' | 'details' | 'products' | 'location'>(
+    initialTab || (companyPlace ? 'details' : 'products')
+  );
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
@@ -628,6 +636,34 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
     }
   };
 
+  // Delete company completely from Firestore and local state
+  const handleDeleteCompany = async () => {
+    if (!companyPlace) return;
+    setIsDeleting(true);
+    setErrorMsg('');
+    try {
+      const activeUserId = currentUser?.uid || currentUser?.id || auth.currentUser?.uid || companyPlace.ownerId;
+      await deleteCompanyFromFirestore(companyPlace.id, activeUserId);
+      await deletePlaceFromFirestore(companyPlace.id);
+
+      try {
+        localStorage.removeItem(COMPANY_DRAFT_KEY);
+      } catch (e) {}
+
+      setShowDeleteModal(false);
+      onClose();
+      if (onPlaceDeleted) {
+        onPlaceDeleted(companyPlace.id);
+      }
+    } catch (err: any) {
+      console.error('Error deleting company from Firestore:', err);
+      const msg = err?.message || 'Verifique as permissões no Firestore.';
+      setErrorMsg('Erro ao excluir empresa: ' + msg);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   // Add Product to catalog
   const handleAddProduct = async () => {
     if (!newProdName.trim()) {
@@ -732,6 +768,18 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            {companyPlace && (
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(true)}
+                className="text-xs font-bold text-rose-400 hover:text-white hover:bg-rose-600/90 border border-rose-500/40 px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shrink-0 shadow-xs active:scale-95"
+                title="Excluir Empresa Definitivamente"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Excluir Empresa</span>
+              </button>
+            )}
+
             {!companyPlace && (
               <button
                 type="button"
@@ -1358,18 +1406,6 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
             <div className="px-5 sm:px-6 pt-3 border-b border-slate-800 bg-slate-950/60 flex items-center gap-2 overflow-x-auto scrollbar-none">
               <button
                 type="button"
-                onClick={() => setActiveTab('products')}
-                className={`py-2.5 px-4 text-xs font-bold rounded-t-xl transition-all border-b-2 whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
-                  activeTab === 'products'
-                    ? 'border-lime-400 text-lime-400 bg-slate-900'
-                    : 'border-transparent text-slate-400 hover:text-white'
-                }`}
-              >
-                <ShoppingBag className="w-4 h-4" />
-                <span>Catálogo & Produtos ({products.length})</span>
-              </button>
-              <button
-                type="button"
                 onClick={() => setActiveTab('details')}
                 className={`py-2.5 px-4 text-xs font-bold rounded-t-xl transition-all border-b-2 whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
                   activeTab === 'details'
@@ -1378,20 +1414,9 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
                 }`}
               >
                 <Building2 className="w-4 h-4" />
-                <span>Dados, Fotos & Redes</span>
+                <span>Editar Empresa & Fotos</span>
               </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('overview')}
-                className={`py-2.5 px-4 text-xs font-bold rounded-t-xl transition-all border-b-2 whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
-                  activeTab === 'overview'
-                    ? 'border-lime-400 text-lime-400 bg-slate-900'
-                    : 'border-transparent text-slate-400 hover:text-white'
-                }`}
-              >
-                <Eye className="w-4 h-4" />
-                <span>Métricas & Visão Geral</span>
-              </button>
+
               <button
                 type="button"
                 onClick={() => setActiveTab('location')}
@@ -1402,7 +1427,33 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
                 }`}
               >
                 <MapPin className="w-4 h-4" />
-                <span>Ponto no Mapa</span>
+                <span>Mudar Local no Mapa</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('products')}
+                className={`py-2.5 px-4 text-xs font-bold rounded-t-xl transition-all border-b-2 whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+                  activeTab === 'products'
+                    ? 'border-lime-400 text-lime-400 bg-slate-900'
+                    : 'border-transparent text-slate-400 hover:text-white'
+                }`}
+              >
+                <ShoppingBag className="w-4 h-4" />
+                <span>Produtos & Serviços ({products.length})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('overview')}
+                className={`py-2.5 px-4 text-xs font-bold rounded-t-xl transition-all border-b-2 whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+                  activeTab === 'overview'
+                    ? 'border-lime-400 text-lime-400 bg-slate-900'
+                    : 'border-transparent text-slate-400 hover:text-white'
+                }`}
+              >
+                <Eye className="w-4 h-4" />
+                <span>Status & Métricas</span>
               </button>
             </div>
 
@@ -2032,6 +2083,45 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
                       </>
                     )}
                   </button>
+
+                  {/* Move location shortcut */}
+                  <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-800/40 border border-slate-700/60">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-lime-400 shrink-0" />
+                      <div>
+                        <span className="text-xs font-bold text-white block">Precisa mudar o local da empresa?</span>
+                        <span className="text-[10px] text-slate-400">Altere o pino geográfico ou o endereço exato no mapa</span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('location')}
+                      className="px-3 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-lime-300 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
+                    >
+                      <Compass className="w-3.5 h-3.5" />
+                      <span>Mudar Local</span>
+                    </button>
+                  </div>
+
+                  {/* Danger Zone: Delete Company */}
+                  <div className="p-4 rounded-2xl bg-rose-950/20 border border-rose-500/30 flex items-center justify-between gap-3">
+                    <div>
+                      <span className="text-xs font-bold text-rose-400 block flex items-center gap-1.5">
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Excluir Minha Empresa
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        Remove permanentemente seu estabelecimento, fotos e pino do mapa.
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowDeleteModal(true)}
+                      className="px-3 py-1.5 rounded-xl bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 font-bold text-xs transition-colors cursor-pointer shrink-0 active:scale-95"
+                    >
+                      Excluir
+                    </button>
+                  </div>
                 </form>
               )}
 
@@ -2116,6 +2206,50 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
                     </div>
                   </div>
 
+                  {/* Owner Quick Actions */}
+                  <div className="p-4 rounded-2xl bg-slate-800/40 border border-slate-700/60 space-y-3">
+                    <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                      Ações do Proprietário
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('details')}
+                        className="p-3 rounded-xl bg-slate-900 border border-slate-700 hover:border-lime-400/60 text-left transition-colors cursor-pointer group"
+                      >
+                        <div className="flex items-center gap-2 text-white text-xs font-bold mb-1">
+                          <Building2 className="w-4 h-4 text-lime-400" />
+                          <span>Editar Informações</span>
+                        </div>
+                        <p className="text-[10px] text-slate-400">Nome, fotos, horário e redes sociais</p>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('location')}
+                        className="p-3 rounded-xl bg-slate-900 border border-slate-700 hover:border-blue-400/60 text-left transition-colors cursor-pointer group"
+                      >
+                        <div className="flex items-center gap-2 text-white text-xs font-bold mb-1">
+                          <MapPin className="w-4 h-4 text-blue-400" />
+                          <span>Mudar Local no Mapa</span>
+                        </div>
+                        <p className="text-[10px] text-slate-400">Alterar endereço ou selecionar novo ponto</p>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('products')}
+                        className="p-3 rounded-xl bg-slate-900 border border-slate-700 hover:border-purple-400/60 text-left transition-colors cursor-pointer group"
+                      >
+                        <div className="flex items-center gap-2 text-white text-xs font-bold mb-1">
+                          <ShoppingBag className="w-4 h-4 text-purple-400" />
+                          <span>Catálogo de Produtos</span>
+                        </div>
+                        <p className="text-[10px] text-slate-400">Adicionar ou gerenciar itens e preços</p>
+                      </button>
+                    </div>
+                  </div>
+
                   {/* Map Preview Action */}
                   {onViewOnMap && (
                     <button
@@ -2127,6 +2261,26 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
                       <span>Ver Como Meus Clientes Veem no Mapa Regional</span>
                     </button>
                   )}
+
+                  {/* Danger Zone: Delete Company */}
+                  <div className="p-4 rounded-2xl bg-rose-950/20 border border-rose-500/30 flex items-center justify-between gap-3">
+                    <div>
+                      <span className="text-xs font-bold text-rose-400 block flex items-center gap-1.5">
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Excluir Empresa Definitivamente
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        Remover esta empresa do mapa e apagar todos os dados cadastrados.
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowDeleteModal(true)}
+                      className="px-3 py-1.5 rounded-xl bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 font-bold text-xs transition-colors cursor-pointer shrink-0 active:scale-95"
+                    >
+                      Excluir
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -2137,20 +2291,75 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
                     <div className="flex items-center justify-between">
                       <h4 className="text-sm font-bold text-white flex items-center gap-2">
                         <MapPin className="w-4 h-4 text-lime-400" />
-                        <span>Coordenadas Geográficas no Google Maps</span>
+                        <span>Mudar Endereço e Localização da Empresa</span>
                       </h4>
                       {hasChangedLocation && (
                         <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-lime-400 text-slate-950 animate-pulse">
-                          LOCALIZAÇÃO ALTERADA
+                          LOCALIZAÇÃO SELECIONADA
                         </span>
                       )}
                     </div>
                     
                     <p className="text-xs text-slate-300 leading-relaxed">
-                      O pino no mapa define exatamente onde os clientes veem sua empresa quando pesquisam no bairro.
-                      Ao mudar de endereço, o pino antigo é automaticamente removido do mapa.
+                      Você pode alterar o endereço escrito e também clicar no mapa para mudar onde o pino da sua empresa aparece.
+                      Ao salvar, o ponto anterior é substituído e os clientes verão o novo local.
                     </p>
 
+                    {/* Address & Neighborhood Fields */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-300 mb-1">
+                          Bairro
+                        </label>
+                        <select
+                          value={neighborhood}
+                          onChange={(e) => {
+                            const newNb = e.target.value;
+                            setNeighborhood(newNb);
+                            if (NEIGHBORHOOD_COORDINATES[newNb]) {
+                              setPlaceLat(NEIGHBORHOOD_COORDINATES[newNb].lat);
+                              setPlaceLng(NEIGHBORHOOD_COORDINATES[newNb].lng);
+                              setHasChangedLocation(true);
+                            }
+                          }}
+                          className="w-full px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-lime-400 cursor-pointer"
+                        >
+                          {NEIGHBORHOODS.map((b) => (
+                            <option key={b} value={b}>
+                              {b}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-300 mb-1">
+                          Cidade
+                        </label>
+                        <input
+                          type="text"
+                          value={city}
+                          onChange={(e) => setCity(e.target.value)}
+                          placeholder="Recife ou Jaboatão"
+                          className="w-full px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-lime-400"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-300 mb-1">
+                        Endereço Completo (Rua, Número, Referência)
+                      </label>
+                      <input
+                        type="text"
+                        value={address}
+                        onChange={(e) => setAddress(e.target.value)}
+                        placeholder="Ex: Av. Dolores Duran, 120 - Curado IV"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-lime-400"
+                      />
+                    </div>
+
+                    {/* Coordinates Display */}
                     <div className="grid grid-cols-2 gap-3 p-3.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono">
                       <div>
                         <span className="text-slate-400 text-[11px] block">Latitude Atual:</span>
@@ -2165,7 +2374,7 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
                     {hasChangedLocation && (
                       <div className="p-3 rounded-xl bg-lime-400/10 border border-lime-400/40 text-lime-300 text-xs flex items-center gap-2">
                         <Check className="w-4 h-4 text-lime-400 shrink-0" />
-                        <span>Novo ponto selecionado no mapa! Clique abaixo para confirmar e remover o local antigo.</span>
+                        <span>Novo ponto selecionado no mapa! Clique em "Salvar Nova Localização" abaixo para atualizar.</span>
                       </div>
                     )}
 
@@ -2204,12 +2413,86 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
                       </button>
                     </div>
                   </div>
+
+                  {/* Danger Zone: Delete Company */}
+                  <div className="p-4 rounded-2xl bg-rose-950/20 border border-rose-500/30 flex items-center justify-between gap-3">
+                    <div>
+                      <span className="text-xs font-bold text-rose-400 block flex items-center gap-1.5">
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Excluir Minha Empresa
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        Remover empresa e pino do mapa permanentemente.
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowDeleteModal(true)}
+                      className="px-3 py-1.5 rounded-xl bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 font-bold text-xs transition-colors cursor-pointer shrink-0 active:scale-95"
+                    >
+                      Excluir
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
           </>
         )}
       </div>
+
+      {/* Confirmation Modal for Company Deletion */}
+      {showDeleteModal && companyPlace && (
+        <div className="fixed inset-0 z-[1200] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-slate-900 border border-rose-500/60 rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
+            <div className="w-12 h-12 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-2">
+              <h3 className="text-lg font-black text-white">
+                Excluir Empresa Definitivamente?
+              </h3>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Tem certeza que deseja excluir <strong className="text-white">"{companyPlace.name}"</strong>?
+              </p>
+              <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-500/30 text-rose-300 text-[11px] text-left space-y-1">
+                <p>• O pino no mapa será removido imediatamente para todos os moradores.</p>
+                <p>• O catálogo de produtos ({products.length} itens) será apagado.</p>
+                <p>• Todas as fotos e dados de contato serão excluídos.</p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setShowDeleteModal(false)}
+                className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs cursor-pointer transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleDeleteCompany}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-rose-600/30 transition-all disabled:opacity-50 active:scale-95"
+              >
+                {isDeleting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Excluindo...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    <span>Sim, Excluir Agora</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

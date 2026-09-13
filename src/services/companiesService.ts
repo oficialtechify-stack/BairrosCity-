@@ -277,3 +277,69 @@ export async function saveCompanyToFirestore(
 
   return cleanPayload as Company;
 }
+
+/**
+ * Delete company completely from Firestore (both `companies` and `places` collections).
+ * Also cleans up any associated user places so old pins vanish completely.
+ */
+export async function deleteCompanyFromFirestore(companyId: string, userId?: string): Promise<void> {
+  if (!companyId && !userId) {
+    console.warn('[Firestore] deleteCompanyFromFirestore called without companyId or userId');
+    return;
+  }
+
+  console.log(`[Firestore] Deleting company ${companyId} (userId: ${userId})...`);
+
+  // 1. Delete from `companies` collection by companyId
+  if (companyId) {
+    try {
+      const compDocRef = doc(db, COMPANIES_COLLECTION, companyId);
+      await deleteDoc(compDocRef);
+      console.log(`[Firestore] Successfully removed 'companies/${companyId}'`);
+    } catch (err) {
+      console.warn(`[Firestore] Could not direct-delete 'companies/${companyId}':`, err);
+    }
+  }
+
+  // 2. Delete any other matching company records for this user (handles duplicate/old records)
+  if (userId) {
+    try {
+      const qComp = query(collection(db, COMPANIES_COLLECTION), where('userId', '==', userId));
+      const compSnaps = await getDocs(qComp);
+      for (const snap of compSnaps.docs) {
+        await deleteDoc(doc(db, COMPANIES_COLLECTION, snap.id));
+        console.log(`[Firestore] Removed user company doc '${snap.id}'`);
+      }
+    } catch (err) {
+      console.warn('[Firestore] Error cleaning user company docs:', err);
+    }
+  }
+
+  // 3. Delete from `places` collection by companyId
+  if (companyId) {
+    try {
+      const placeDocRef = doc(db, 'places', companyId);
+      await deleteDoc(placeDocRef);
+      console.log(`[Firestore] Successfully removed 'places/${companyId}'`);
+    } catch (err) {
+      console.warn(`[Firestore] Could not direct-delete 'places/${companyId}':`, err);
+    }
+  }
+
+  // 4. Delete any place records where ownerId matches userId
+  if (userId) {
+    try {
+      const qPlace = query(collection(db, 'places'), where('ownerId', '==', userId));
+      const placeSnaps = await getDocs(qPlace);
+      for (const snap of placeSnaps.docs) {
+        await deleteDoc(doc(db, 'places', snap.id));
+        console.log(`[Firestore] Removed owned place pin '${snap.id}'`);
+      }
+    } catch (err) {
+      console.warn('[Firestore] Error cleaning user place pins:', err);
+    }
+  }
+
+  console.log(`[Firestore] Company ${companyId} completely removed.`);
+}
+

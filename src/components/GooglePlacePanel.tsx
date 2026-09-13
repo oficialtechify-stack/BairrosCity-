@@ -28,7 +28,10 @@ import {
   Plus,
   ShoppingBag,
   Instagram,
-  Globe
+  Globe,
+  Compass,
+  Trash2,
+  Pencil
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { recordCompanyInteraction } from '../services/placesService';
@@ -47,6 +50,8 @@ interface GooglePlacePanelProps {
   currentUser?: UserProfile | null;
   onOpenCompanyManager?: () => void;
   userCompanyPlace?: Place | null;
+  onEditCompany?: (place: Place, tab?: 'overview' | 'details' | 'products' | 'location') => void;
+  onDeleteCompany?: (place: Place) => void;
 }
 
 export const GooglePlacePanel: React.FC<GooglePlacePanelProps> = ({
@@ -63,6 +68,8 @@ export const GooglePlacePanel: React.FC<GooglePlacePanelProps> = ({
   currentUser,
   onOpenCompanyManager,
   userCompanyPlace,
+  onEditCompany,
+  onDeleteCompany,
 }) => {
   // Review form state
   const [showReviewForm, setShowReviewForm] = useState<boolean>(false);
@@ -76,6 +83,19 @@ export const GooglePlacePanel: React.FC<GooglePlacePanelProps> = ({
   const [copiedLink, setCopiedLink] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'reviews'>('overview');
   const [hoursExpanded, setHoursExpanded] = useState<boolean>(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<boolean>(false);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
+
+  const isPlaceOwner = Boolean(
+    currentUser &&
+    selectedPlace &&
+    (
+      (selectedPlace.ownerId && (selectedPlace.ownerId === currentUser.id || selectedPlace.ownerId === currentUser.uid)) ||
+      (currentUser.email && selectedPlace.ownerEmail && selectedPlace.ownerEmail.toLowerCase() === currentUser.email.toLowerCase()) ||
+      (userCompanyPlace && userCompanyPlace.id === selectedPlace.id) ||
+      (currentUser.companyName && selectedPlace.name && currentUser.companyName.toLowerCase().trim() === selectedPlace.name.toLowerCase().trim())
+    )
+  );
 
   const isSaved = selectedPlace ? savedPlaceIds.includes(selectedPlace.id) : false;
 
@@ -274,24 +294,66 @@ export const GooglePlacePanel: React.FC<GooglePlacePanelProps> = ({
               {/* Place Title & Rating */}
               <div className="p-4 border-b border-slate-100">
                 {/* If place is owned by current user */}
-                {currentUser && currentUser.role === 'empresa' && (selectedPlace.ownerId === currentUser.id || selectedPlace.id === userCompanyPlace?.id) && (
-                  <div className="mb-3 p-2.5 rounded-xl bg-slate-900 border border-lime-400/40 text-white flex items-center justify-between shadow-sm">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Building2 className="w-4 h-4 text-lime-400 shrink-0" />
-                      <div className="truncate">
-                        <p className="text-xs font-black text-lime-400 truncate">Sua Empresa Cadastrada</p>
-                        <p className="text-[10px] text-slate-400 truncate">Gerencie produtos, horários e WhatsApp</p>
+                {isPlaceOwner && (
+                  <div className="mb-4 p-3.5 rounded-2xl bg-slate-900 border border-lime-400/40 text-white shadow-lg space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-7 h-7 rounded-lg bg-lime-400/20 text-lime-400 flex items-center justify-center shrink-0">
+                          <Building2 className="w-4 h-4" />
+                        </div>
+                        <div className="truncate">
+                          <p className="text-xs font-black text-lime-400 truncate">Sua Empresa (Administrador)</p>
+                          <p className="text-[10px] text-slate-400 truncate">Você tem controle total deste estabelecimento</p>
+                        </div>
                       </div>
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-lime-400/20 text-lime-300 border border-lime-400/30">
+                        DONO
+                      </span>
                     </div>
-                    {onOpenCompanyManager && (
+
+                    <div className="grid grid-cols-3 gap-1.5 pt-1">
                       <button
                         type="button"
-                        onClick={onOpenCompanyManager}
-                        className="px-2.5 py-1 rounded-lg bg-lime-400 hover:bg-lime-300 text-slate-950 font-black text-[11px] shrink-0 shadow-xs cursor-pointer ml-2"
+                        onClick={() => {
+                          if (onEditCompany) {
+                            onEditCompany(selectedPlace, 'details');
+                          } else if (onOpenCompanyManager) {
+                            onOpenCompanyManager();
+                          }
+                        }}
+                        className="py-2 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-lime-300 hover:text-white border border-slate-700 font-bold text-[11px] flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs active:scale-95"
+                        title="Editar nome, fotos, horário e redes"
                       >
-                        Painel
+                        <Pencil className="w-3.5 h-3.5 text-lime-400" />
+                        <span>Editar</span>
                       </button>
-                    )}
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (onEditCompany) {
+                            onEditCompany(selectedPlace, 'location');
+                          } else if (onOpenCompanyManager) {
+                            onOpenCompanyManager();
+                          }
+                        }}
+                        className="py-2 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-blue-300 hover:text-white border border-slate-700 font-bold text-[11px] flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs active:scale-95"
+                        title="Mudar endereço ou arrastar pino no mapa"
+                      >
+                        <Compass className="w-3.5 h-3.5 text-blue-400" />
+                        <span>Mudar Local</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowDeleteConfirm(true)}
+                        className="py-2 px-2 rounded-xl bg-rose-950/40 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 font-bold text-[11px] flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs active:scale-95"
+                        title="Excluir empresa definitivamente"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                        <span>Excluir</span>
+                      </button>
+                    </div>
                   </div>
                 )}
 
@@ -354,30 +416,6 @@ export const GooglePlacePanel: React.FC<GooglePlacePanelProps> = ({
                 <p className="text-xs text-slate-600 mt-2 leading-relaxed">
                   {selectedPlace.description}
                 </p>
-
-                {/* Company Owner Administration Banner - Only for company role */}
-                {currentUser && currentUser.role === 'empresa' && (currentUser.id === selectedPlace.ownerId || (currentUser.companyName && selectedPlace.name && currentUser.companyName.toLowerCase() === selectedPlace.name.toLowerCase())) && (
-                  <div className="mt-3 p-3 rounded-2xl bg-lime-50 border border-lime-300 flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-xl bg-lime-400/30 text-lime-700 flex items-center justify-center">
-                        <Building2 className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <span className="text-xs font-bold text-slate-900 block">Sua Empresa Cadastrada</span>
-                        <span className="text-[10px] text-slate-500">Você é o administrador deste estabelecimento</span>
-                      </div>
-                    </div>
-                    {onOpenCompanyManager && (
-                      <button
-                        type="button"
-                        onClick={onOpenCompanyManager}
-                        className="px-3 py-1.5 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 font-black text-xs transition-colors cursor-pointer"
-                      >
-                        Gerenciar Empresa
-                      </button>
-                    )}
-                  </div>
-                )}
               </div>
 
               {/* Google Action Buttons (Round Circle Icons + Text below) */}
@@ -1105,6 +1143,71 @@ export const GooglePlacePanel: React.FC<GooglePlacePanelProps> = ({
           <ChevronLeft className="w-4 h-4 text-slate-500 group-hover:text-blue-600 group-hover:-translate-x-0.5 transition-transform" />
         </button>
       </div>
+
+      {/* Delete Confirmation Modal for GooglePlacePanel */}
+      {showDeleteConfirm && selectedPlace && (
+        <div className="fixed inset-0 z-[1200] bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-slate-900 border border-rose-500/50 rounded-3xl p-6 shadow-2xl space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-2">
+              <h3 className="text-lg font-black text-white">
+                Excluir Esta Empresa?
+              </h3>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Você tem certeza que deseja excluir <strong className="text-white">"{selectedPlace.name}"</strong>?
+              </p>
+              <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-500/30 text-rose-300 text-[11px] text-left space-y-1">
+                <p>• O pino no mapa será removido imediatamente para todos os visitantes.</p>
+                <p>• Todos os dados, fotos e produtos vinculados serão apagados do banco.</p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setShowDeleteConfirm(false)}
+                className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs cursor-pointer transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={async () => {
+                  setIsDeleting(true);
+                  try {
+                    if (onDeleteCompany) {
+                      await onDeleteCompany(selectedPlace);
+                    }
+                    setShowDeleteConfirm(false);
+                  } catch (e) {
+                    console.error('Error in onDeleteCompany:', e);
+                  } finally {
+                    setIsDeleting(false);
+                  }
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-rose-600/30 transition-all disabled:opacity-50 active:scale-95"
+              >
+                {isDeleting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Excluindo...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    <span>Sim, Excluir Empresa</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };
