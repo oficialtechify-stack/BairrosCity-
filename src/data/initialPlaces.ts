@@ -118,6 +118,12 @@ export const CATEGORY_CONFIG: Record<
     icon: 'Trees',
     bg: '#d1fae5',
   },
+  culture: {
+    name: 'Cultura, Museus & Patrimônio',
+    color: '#7c3aed', // violet-600
+    icon: 'Landmark',
+    bg: '#ede9fe',
+  },
   nightlife: {
     name: 'Bares & Noite',
     color: '#db2777', // pink-600

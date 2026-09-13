@@ -507,9 +507,9 @@ export const CompanyManagerModal: React.FC<CompanyManagerModalProps> = ({
         ownerName: currentUser?.name || regName.trim(),
         ownerEmail: currentUser?.email || '',
         productsOrServices: initialProducts,
-        rating: 5.0,
-        reviewsCount: 1,
-        reviews: [],
+        rating: savedCompany.rating ?? 0,
+        reviewsCount: savedCompany.reviewsCount ?? 0,
+        reviews: savedCompany.reviews ?? [],
         createdAt: savedCompany.createdAt,
       };
 

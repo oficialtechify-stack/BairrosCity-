@@ -204,9 +204,9 @@ export default function App() {
             ownerName: c.name,
             ownerEmail: '',
             productsOrServices: c.productsOrServices || [],
-            rating: c.rating || 5.0,
-            reviewsCount: c.reviewsCount || 1,
-            reviews: c.reviews || [],
+            rating: typeof c.rating === 'number' ? c.rating : (Array.isArray(c.reviews) && c.reviews.length > 0 ? Number((c.reviews.reduce((acc: number, r: any) => acc + (r.rating || 0), 0) / c.reviews.length).toFixed(1)) : 0),
+            reviewsCount: typeof c.reviewsCount === 'number' ? c.reviewsCount : (Array.isArray(c.reviews) ? c.reviews.length : 0),
+            reviews: Array.isArray(c.reviews) ? c.reviews : [],
             createdAt: c.createdAt,
             isPaused: Boolean(c.isPaused),
           };
@@ -337,27 +337,29 @@ export default function App() {
       userRole: currentUser?.role === 'empresa' ? 'Empresa' : 'Morador do Bairro',
     };
 
+    // Update local state immediately so UI updates in real-time
+    setPlaces((prev) =>
+      prev.map((p) => {
+        if (p.id !== placeId) return p;
+        const currentReviews = Array.isArray(p.reviews) ? p.reviews : [];
+        const updatedReviews = [reviewObj, ...currentReviews];
+        const sumRatings = updatedReviews.reduce((acc, r) => acc + (r.rating || 0), 0);
+        const newAvg = Number((sumRatings / updatedReviews.length).toFixed(1));
+        const updatedPlace: Place = {
+          ...p,
+          rating: newAvg,
+          reviewsCount: updatedReviews.length,
+          reviews: updatedReviews,
+        };
+        if (selectedPlace?.id === placeId) setSelectedPlace(updatedPlace);
+        return updatedPlace;
+      })
+    );
+
     try {
       await addReviewToFirestore(placeId, reviewObj);
     } catch (err) {
-      console.error('Failed to add review to Firestore', err);
-      // Fallback local update
-      setPlaces((prev) =>
-        prev.map((p) => {
-          if (p.id !== placeId) return p;
-          const updatedReviews = [reviewObj, ...p.reviews];
-          const sumRatings = updatedReviews.reduce((acc, r) => acc + r.rating, 0);
-          const newAvg = Number((sumRatings / updatedReviews.length).toFixed(1));
-          const updatedPlace: Place = {
-            ...p,
-            rating: newAvg,
-            reviewsCount: updatedReviews.length,
-            reviews: updatedReviews,
-          };
-          if (selectedPlace?.id === placeId) setSelectedPlace(updatedPlace);
-          return updatedPlace;
-        })
-      );
+      console.error('Failed to add review to Firestore (local state updated)', err);
     }
   };
 
@@ -376,8 +378,8 @@ export default function App() {
       const newPlaceObj: Place = {
         ...newPlaceData,
         id: createdId,
-        rating: 5.0,
-        reviewsCount: 1,
+        rating: 0,
+        reviewsCount: 0,
         reviews: [],
         createdAt: new Date().toISOString(),
       };

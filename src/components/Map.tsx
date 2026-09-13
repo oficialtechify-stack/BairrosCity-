@@ -669,27 +669,38 @@ export const MapComponent: React.FC<MapProps> = ({
     // - Public POIs (parques, escolas, hospitais, dentistas, ginásios, shoppings): visible across all zooms (>= 11)
     //   with authentic Google Maps circular pins and crisp labels, matching user screenshots!
     const zoom = currentZoom;
-    const isFarOut = zoom < 14;
     const mapBounds = map.getBounds();
 
     places.forEach((place) => {
       const isSelected = selectedPlace?.id === place.id;
       const isRegistered = Boolean(place.isRegisteredCompany);
 
-      // 1. Registered companies are hidden at far zoom unless actively selected
-      if (isFarOut && isRegistered && !isSelected) {
+      // 1. Viewport culling with tight buffer: off-screen markers are not rendered
+      const placeLatLng = L.latLng(place.lat, place.lng);
+      if (!isSelected && !mapBounds.pad(0.15).contains(placeLatLng)) {
         return;
       }
 
-      // 2. Viewport culling with generous buffer
-      const placeLatLng = L.latLng(place.lat, place.lng);
-      if (!isSelected && !mapBounds.pad(0.3).contains(placeLatLng)) {
+      // 2. Anti-pollution Zoom filtering matching Google Maps:
+      // - Zoom < 12 (State/Metropolitan scale): Only show prominent landmark icons (featured) or selected place
+      if (zoom < 12 && !isSelected && !place.featured) {
         return;
       }
+
+      // - Zoom < 14: Registered companies only appear at neighborhood scale (zoom >= 14) unless selected
+      if (zoom < 14 && isRegistered && !isSelected) {
+        return;
+      }
+
+      // 3. Label visibility:
+      // Show text label only when zoomed in close (zoom >= 15) or when selected.
+      // At zoom < 15, render clean Google Maps circular pins. Hovering/touching reveals the rich preview tooltip!
+      const showLabel = isSelected || zoom >= 15;
+      const pinSize = isSelected ? 34 : (zoom >= 14 ? 28 : 22);
 
       const poiColor = getGooglePoiColor(place);
       const poiSvg = getGooglePoiSvg(place);
-      const logoOrPhoto = place.logoUrl || place.imageUrl;
+      const logoOrPhoto = place.logoUrl || (place.imageUrl && !place.imageUrl.includes('unsplash.com') ? place.imageUrl : '');
       const hasLogoPhoto = Boolean(logoOrPhoto);
 
       // Style label according to active map layer (satellite/dark vs roadmap)
@@ -707,16 +718,16 @@ export const MapComponent: React.FC<MapProps> = ({
           cursor: pointer;
           user-select: none;
           pointer-events: auto;
-          transform: scale(${isSelected ? 1.22 : 1});
+          transform: scale(${isSelected ? 1.2 : 1});
           transition: transform 0.18s ease;
           z-index: ${isSelected ? 1400 : (isRegistered ? 500 : 300)};
         ">
           <!-- Circular Google Maps Pin Icon -->
           <div style="
             position: relative;
-            width: ${isSelected ? '34px' : '28px'};
-            height: ${isSelected ? '34px' : '28px'};
-            min-width: ${isSelected ? '34px' : '28px'};
+            width: ${pinSize}px;
+            height: ${pinSize}px;
+            min-width: ${pinSize}px;
             border-radius: 50%;
             background-color: ${hasLogoPhoto && isRegistered ? '#ffffff' : poiColor};
             color: #ffffff;
@@ -737,7 +748,7 @@ export const MapComponent: React.FC<MapProps> = ({
                 referrerpolicy="no-referrer"
               />
             ` : `
-              <div style="display: flex; align-items: center; justify-content: center; transform: scale(${isSelected ? 1.05 : 0.9}); color: #ffffff;">
+              <div style="display: flex; align-items: center; justify-content: center; transform: scale(${isSelected ? 1.05 : (pinSize <= 24 ? 0.75 : 0.9)}); color: #ffffff;">
                 ${poiSvg}
               </div>
             `}
@@ -747,8 +758,8 @@ export const MapComponent: React.FC<MapProps> = ({
                 position: absolute;
                 bottom: -1px;
                 right: -1px;
-                width: 12px;
-                height: 12px;
+                width: 11px;
+                height: 11px;
                 background-color: #84cc16;
                 border: 1.5px solid #ffffff;
                 border-radius: 50%;
@@ -756,29 +767,31 @@ export const MapComponent: React.FC<MapProps> = ({
                 align-items: center;
                 justify-content: center;
                 color: #0f172a;
-                font-size: 7.5px;
+                font-size: 7px;
                 font-weight: 900;
               ">✓</div>
             ` : ''}
           </div>
 
-          <!-- Google Maps Text Label with Halo -->
-          <div style="
-            font-family: Roboto, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            font-size: ${isSelected ? '12px' : '11px'};
-            font-weight: 700;
-            line-height: 1.15;
-            color: ${labelColor};
-            text-shadow: ${textHalo};
-            white-space: nowrap;
-            max-width: 220px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            letter-spacing: -0.01em;
-            padding-right: 4px;
-          ">
-            ${place.name}
-          </div>
+          ${showLabel ? `
+            <!-- Google Maps Text Label with Halo -->
+            <div style="
+              font-family: Roboto, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+              font-size: ${isSelected ? '12px' : '11px'};
+              font-weight: 700;
+              line-height: 1.15;
+              color: ${labelColor};
+              text-shadow: ${textHalo};
+              white-space: nowrap;
+              max-width: 220px;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              letter-spacing: -0.01em;
+              padding-right: 4px;
+            ">
+              ${place.name}
+            </div>
+          ` : ''}
         </div>
       `;
 
@@ -786,8 +799,8 @@ export const MapComponent: React.FC<MapProps> = ({
         icon: L.divIcon({
           className: 'google-place-pin-root',
           html: pinHtml,
-          iconSize: [0, 0],
-          iconAnchor: [14, 14],
+          iconSize: [pinSize, pinSize],
+          iconAnchor: [pinSize / 2, pinSize / 2],
         }),
         zIndexOffset: isSelected ? 1200 : (isRegistered ? 500 : 150),
       }).addTo(markersGroup);

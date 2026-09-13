@@ -149,19 +149,10 @@ export async function createPlaceInFirestore(placeData: Omit<Place, 'id' | 'rati
     logoUrl: placeData.logoUrl || '',
     photoUrl: placeData.imageUrl || placeData.photoUrl || '',
     imageUrl: placeData.imageUrl || placeData.photoUrl || '',
-    rating: 5.0,
-    reviewsCount: 1,
-    reviews: [
-      {
-        id: `rev-welcome-${Date.now()}`,
-        author: 'Sistema BairrosCity',
-        rating: 5,
-        comment: 'Empresa cadastrada e verificada na plataforma regional.',
-        date: new Date().toISOString().split('T')[0],
-        userRole: 'Verificação Oficial'
-      }
-    ],
-    viewsCount: 1,
+    rating: 0,
+    reviewsCount: 0,
+    reviews: [],
+    viewsCount: 0,
     whatsappClicks: 0,
     isPaused: false,
     createdAt: new Date().toISOString(),
@@ -259,4 +250,16 @@ export async function addReviewToFirestore(
     rating: newAvg,
     reviewsCount: updatedReviews.length,
   });
+
+  // Also sync to companies collection if it exists there
+  try {
+    const compRef = doc(db, 'companies', placeId);
+    await updateDoc(compRef, {
+      reviews: updatedReviews,
+      rating: newAvg,
+      reviewsCount: updatedReviews.length,
+    });
+  } catch (err) {
+    // Non-fatal if place is only in places collection
+  }
 }

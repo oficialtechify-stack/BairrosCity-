@@ -172,9 +172,9 @@ export function getGooglePoiSvg(place: Place): string {
  */
 export function buildGoogleMapsPreviewCard(place: Place): string {
   const color = getGooglePoiColor(place);
-  const photo = place.imageUrl || place.logoUrl;
-  const rating = (place.rating || 5.0).toFixed(1).replace('.', ',');
-  const reviewsCount = place.reviewsCount || (place.reviews?.length ?? 1);
+  const photo = place.imageUrl && !place.imageUrl.includes('unsplash.com') ? place.imageUrl : '';
+  const reviewsCount = typeof place.reviewsCount === 'number' ? place.reviewsCount : (place.reviews?.length ?? 0);
+  const rating = (place.rating || 0).toFixed(1).replace('.', ',');
   const subCat = place.customCategory || place.subCategory || 'Ponto de Interesse';
   const hours = place.hours || 'Aberto agora';
   const isOpenNow = hours.toLowerCase().includes('aberto') || hours.toLowerCase().includes('24 horas');
@@ -202,23 +202,25 @@ export function buildGoogleMapsPreviewCard(place: Place): string {
             style="width: 100%; height: 100%; object-fit: cover; display: block;"
             referrerpolicy="no-referrer"
           />
-          <div style="
-            position: absolute;
-            top: 8px;
-            right: 8px;
-            background: rgba(15, 23, 42, 0.82);
-            backdrop-filter: blur(4px);
-            color: #ffffff;
-            font-size: 10px;
-            font-weight: 700;
-            padding: 3px 8px;
-            border-radius: 9999px;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-          ">
-            <span>⭐</span> ${rating}
-          </div>
+          ${reviewsCount > 0 ? `
+            <div style="
+              position: absolute;
+              top: 8px;
+              right: 8px;
+              background: rgba(15, 23, 42, 0.82);
+              backdrop-filter: blur(4px);
+              color: #ffffff;
+              font-size: 10px;
+              font-weight: 700;
+              padding: 3px 8px;
+              border-radius: 9999px;
+              display: flex;
+              align-items: center;
+              gap: 4px;
+            ">
+              <span>⭐</span> ${rating}
+            </div>
+          ` : ''}
           <div style="
             position: absolute;
             bottom: 0;
@@ -228,7 +230,19 @@ export function buildGoogleMapsPreviewCard(place: Place): string {
             background: linear-gradient(to top, rgba(0,0,0,0.55), transparent);
           "></div>
         </div>
-      ` : ''}
+      ` : `
+        <div style="position: relative; width: 100%; height: 56px; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid #334155;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="width: 32px; height: 32px; border-radius: 50%; background-color: ${color}; color: #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.35); flex-shrink: 0;">
+              ${getGooglePoiSvg(place)}
+            </div>
+            <div>
+              <div style="font-size: 9px; font-weight: 800; color: #93c5fd; text-transform: uppercase; letter-spacing: 0.5px;">Google Maps</div>
+              <div style="font-size: 11px; font-weight: 700; color: #ffffff; white-space: nowrap; max-width: 170px; overflow: hidden; text-overflow: ellipsis;">${place.neighborhood}, ${place.city}</div>
+            </div>
+          </div>
+        </div>
+      `}
 
       <div style="padding: 12px 14px;">
         <!-- Category Pill & Status -->
@@ -273,11 +287,18 @@ export function buildGoogleMapsPreviewCard(place: Place): string {
         </div>
 
         <!-- Rating Stars -->
-        <div style="display: flex; align-items: center; gap: 5px; font-size: 11px; margin-bottom: 6px;">
-          <span style="font-weight: 800; color: #b45309;">${rating}</span>
-          <span style="color: #f59e0b; letter-spacing: 0.5px;">★★★★★</span>
-          <span style="color: #64748b;">(${reviewsCount.toLocaleString('pt-BR')})</span>
-        </div>
+        ${reviewsCount > 0 ? `
+          <div style="display: flex; align-items: center; gap: 5px; font-size: 11px; margin-bottom: 6px;">
+            <span style="font-weight: 800; color: #b45309;">${rating}</span>
+            <span style="color: #f59e0b; letter-spacing: 0.5px;">★★★★★</span>
+            <span style="color: #64748b;">(${reviewsCount.toLocaleString('pt-BR')})</span>
+          </div>
+        ` : `
+          <div style="display: flex; align-items: center; gap: 5px; font-size: 11px; margin-bottom: 6px;">
+            <span style="color: #cbd5e1; letter-spacing: 0.5px;">☆☆☆☆☆</span>
+            <span style="color: #64748b; font-weight: 600; font-size: 10.5px;">0 avaliações • Moradores avaliam</span>
+          </div>
+        `}
 
         <!-- Address -->
         ${place.address ? `

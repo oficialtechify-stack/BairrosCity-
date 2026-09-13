@@ -17,7 +17,8 @@ export type CategoryType =
   | 'education'
   | 'realestate'
   | 'parties'
-  | 'leisure' 
+  | 'leisure'
+  | 'culture'
   | 'nightlife' 
   | 'event' 
   | 'other';

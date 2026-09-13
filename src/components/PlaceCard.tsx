@@ -15,7 +15,8 @@ import {
   ShoppingBag,
   Trees,
   PartyPopper,
-  Store
+  Store,
+  Landmark
 } from 'lucide-react';
 
 interface PlaceCardProps {
@@ -33,6 +34,7 @@ const ICON_COMPONENTS: Record<string, React.FC<{ className?: string }>> = {
   Calendar,
   PartyPopper,
   Store,
+  Landmark,
 };
 
 export const PlaceCard: React.FC<PlaceCardProps> = ({
@@ -55,20 +57,35 @@ export const PlaceCard: React.FC<PlaceCardProps> = ({
       }`}
     >
       <div className="flex flex-col sm:flex-row h-full">
-        {/* Thumbnail Image */}
-        <div className="relative w-full sm:w-44 h-40 sm:h-auto min-h-[140px] shrink-0 overflow-hidden bg-slate-100">
-          <img
-            src={place.imageUrl}
-            alt={place.name}
-            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-            loading="lazy"
-            onError={(e) => {
-              // fallback image if broken
-              (e.target as HTMLImageElement).src =
-                'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&auto=format&fit=crop&q=80';
-            }}
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent sm:hidden" />
+        {/* Thumbnail Image or Google Maps Badge */}
+        <div className="relative w-full sm:w-44 h-40 sm:h-auto min-h-[140px] shrink-0 overflow-hidden bg-slate-900 flex items-center justify-center">
+          {place.imageUrl && !place.imageUrl.includes('unsplash.com') ? (
+            <>
+              <img
+                src={place.imageUrl}
+                alt={place.name}
+                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                loading="lazy"
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent sm:hidden" />
+            </>
+          ) : (
+            <div className="w-full h-full min-h-[140px] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 flex flex-col items-center justify-center p-4 text-center">
+              <div
+                className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg mb-1.5"
+                style={{ backgroundColor: categoryMeta.color }}
+              >
+                <CategoryIcon className="w-6 h-6 text-white" />
+              </div>
+              <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider">
+                Google Maps
+              </span>
+            </div>
+          )}
 
           {/* Category Pill on Image */}
           <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold backdrop-blur-md bg-white/90 shadow-sm">
@@ -117,15 +134,24 @@ export const PlaceCard: React.FC<PlaceCardProps> = ({
               </div>
 
               {/* Star Rating Badge */}
-              <div className="flex items-center gap-1 bg-amber-50 border border-amber-200/80 px-2 py-1 rounded-lg shrink-0">
-                <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
-                <span className="text-xs font-bold text-slate-800">
-                  {place.rating.toFixed(1)}
-                </span>
-                <span className="text-[10px] text-slate-400 font-normal">
-                  ({place.reviewsCount})
-                </span>
-              </div>
+              {place.reviewsCount > 0 ? (
+                <div className="flex items-center gap-1 bg-amber-50 border border-amber-200/80 px-2 py-1 rounded-lg shrink-0">
+                  <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
+                  <span className="text-xs font-bold text-slate-800">
+                    {place.rating.toFixed(1)}
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-normal">
+                    ({place.reviewsCount})
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1 bg-slate-100 border border-slate-200 px-2 py-1 rounded-lg shrink-0">
+                  <Star className="w-3 h-3 text-slate-300" />
+                  <span className="text-[10px] font-semibold text-slate-600">
+                    0 avaliações
+                  </span>
+                </div>
+              )}
             </div>
 
             <p className="mt-1 text-xs text-slate-600 line-clamp-2 leading-relaxed">

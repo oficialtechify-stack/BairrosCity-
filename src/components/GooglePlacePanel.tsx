@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { recordCompanyInteraction } from '../services/placesService';
+import { getGooglePoiColor, getGooglePoiSvg } from '../utils/googleMapsPoiHelper';
 
 interface GooglePlacePanelProps {
   isOpen: boolean;
@@ -243,23 +244,47 @@ export const GooglePlacePanel: React.FC<GooglePlacePanelProps> = ({
           {selectedPlace ? (
             /* PLACE DETAILS VIEW */
             <div className="flex-1 flex flex-col overflow-y-auto">
-              {/* Hero Place Image Header */}
-              <div className="relative w-full h-48 shrink-0 bg-slate-100 overflow-hidden">
-                <img
-                  src={selectedPlace.imageUrl}
-                  alt={selectedPlace.name}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src =
-                      'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&auto=format&fit=crop&q=80';
-                  }}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
+              {/* Hero Place Header - Real Photo or Authentic Google Maps Banner */}
+              <div className="relative w-full h-44 shrink-0 overflow-hidden bg-slate-900 flex flex-col justify-between">
+                {selectedPlace.imageUrl && !selectedPlace.imageUrl.includes('unsplash.com') ? (
+                  <>
+                    <img
+                      src={selectedPlace.imageUrl}
+                      alt={selectedPlace.name}
+                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/30" />
+                  </>
+                ) : (
+                  <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-blue-950 p-4 flex flex-col justify-between">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div
+                          className="w-10 h-10 rounded-full flex items-center justify-center text-white shadow-md shrink-0"
+                          style={{ backgroundColor: getGooglePoiColor(selectedPlace) }}
+                          dangerouslySetInnerHTML={{ __html: getGooglePoiSvg(selectedPlace) }}
+                        />
+                        <div>
+                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-400">
+                            Local no Google Maps
+                          </span>
+                          <p className="text-xs font-bold text-white leading-tight">
+                            {selectedPlace.neighborhood}, {selectedPlace.city}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Return to list button */}
                 <button
                   onClick={onClosePlace}
-                  className="absolute top-3 left-3 px-3 py-1.5 rounded-full bg-white/95 backdrop-blur-md text-slate-800 hover:text-blue-600 font-bold text-xs flex items-center gap-1 shadow-md transition-transform hover:scale-105"
+                  className="absolute top-3 left-3 px-3 py-1.5 rounded-full bg-white/95 backdrop-blur-md text-slate-800 hover:text-blue-600 font-bold text-xs flex items-center gap-1 shadow-md transition-transform hover:scale-105 z-20 cursor-pointer"
                   title="Voltar à lista"
                 >
                   <ChevronLeft className="w-4 h-4" />
@@ -267,7 +292,7 @@ export const GooglePlacePanel: React.FC<GooglePlacePanelProps> = ({
                 </button>
 
                 {/* Category tag on image */}
-                <div className="absolute bottom-3 left-3 flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/70 backdrop-blur-md text-white text-xs font-semibold">
+                <div className="absolute bottom-3 left-3 flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/70 backdrop-blur-md text-white text-xs font-semibold z-20">
                   <span
                     className="w-2.5 h-2.5 rounded-full"
                     style={{
@@ -284,7 +309,7 @@ export const GooglePlacePanel: React.FC<GooglePlacePanelProps> = ({
                 </div>
 
                 {selectedPlace.isEvent && (
-                  <div className="absolute top-3 right-3 bg-purple-600 text-white text-[11px] font-extrabold px-2.5 py-1 rounded-full shadow-md uppercase tracking-wider flex items-center gap-1">
+                  <div className="absolute top-3 right-3 bg-purple-600 text-white text-[11px] font-extrabold px-2.5 py-1 rounded-full shadow-md uppercase tracking-wider flex items-center gap-1 z-20">
                     <Sparkles className="w-3 h-3" />
                     <span>Evento</span>
                   </div>
@@ -384,25 +409,40 @@ export const GooglePlacePanel: React.FC<GooglePlacePanelProps> = ({
                 </div>
 
                 {/* Rating Stars row */}
-                <div className="flex items-center gap-2 mt-1.5">
-                  <span className="font-bold text-slate-900 text-sm">
-                    {selectedPlace.rating.toFixed(1)}
-                  </span>
-                  <div className="flex items-center text-amber-500">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <Star
-                        key={star}
-                        className={`w-4 h-4 ${
-                          star <= Math.round(selectedPlace.rating)
-                            ? 'fill-amber-400 text-amber-400'
-                            : 'text-slate-300'
-                        }`}
-                      />
-                    ))}
-                  </div>
-                  <span className="text-xs text-slate-500">
-                    ({selectedPlace.reviewsCount} avaliações)
-                  </span>
+                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                  {selectedPlace.reviewsCount > 0 ? (
+                    <>
+                      <span className="font-bold text-slate-900 text-sm">
+                        {selectedPlace.rating.toFixed(1)}
+                      </span>
+                      <div className="flex items-center text-amber-500">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Star
+                            key={star}
+                            className={`w-4 h-4 ${
+                              star <= Math.round(selectedPlace.rating)
+                                ? 'fill-amber-400 text-amber-400'
+                                : 'text-slate-300'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                      <span className="text-xs text-slate-500">
+                        ({selectedPlace.reviewsCount} {selectedPlace.reviewsCount === 1 ? 'avaliação' : 'avaliações'})
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center text-slate-300">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Star key={star} className="w-4 h-4 text-slate-300" />
+                        ))}
+                      </div>
+                      <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
+                        0 avaliações • Moradores avaliam
+                      </span>
+                    </>
+                  )}
                   {selectedPlace.priceRange && (
                     <>
                       <span className="text-slate-300">•</span>
@@ -760,50 +800,64 @@ export const GooglePlacePanel: React.FC<GooglePlacePanelProps> = ({
               {activeTab === 'reviews' && (
                 <div className="p-4 space-y-4">
                   {/* Overall Score */}
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center gap-4">
-                    <div className="text-center shrink-0">
-                      <div className="text-3xl font-extrabold text-slate-900 leading-none">
-                        {selectedPlace.rating.toFixed(1)}
+                  {selectedPlace.reviewsCount > 0 ? (
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center gap-4">
+                      <div className="text-center shrink-0">
+                        <div className="text-3xl font-extrabold text-slate-900 leading-none">
+                          {selectedPlace.rating.toFixed(1)}
+                        </div>
+                        <div className="flex items-center justify-center text-amber-500 mt-1">
+                          {[1, 2, 3, 4, 5].map((s) => (
+                            <Star
+                              key={s}
+                              className={`w-3 h-3 ${
+                                s <= Math.round(selectedPlace.rating)
+                                  ? 'fill-amber-400 text-amber-400'
+                                  : 'text-slate-300'
+                              }`}
+                            />
+                          ))}
+                        </div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">
+                          {selectedPlace.reviewsCount} {selectedPlace.reviewsCount === 1 ? 'avaliação de morador' : 'avaliações de moradores'}
+                        </div>
                       </div>
-                      <div className="flex items-center justify-center text-amber-500 mt-1">
-                        {[1, 2, 3, 4, 5].map((s) => (
-                          <Star
-                            key={s}
-                            className={`w-3 h-3 ${
-                              s <= Math.round(selectedPlace.rating)
-                                ? 'fill-amber-400 text-amber-400'
-                                : 'text-slate-300'
-                            }`}
-                          />
-                        ))}
-                      </div>
-                      <div className="text-[10px] text-slate-400 mt-0.5">
-                        {selectedPlace.reviewsCount} opiniões
-                      </div>
-                    </div>
 
-                    {/* Bars */}
-                    <div className="flex-1 space-y-1">
-                      {[5, 4, 3, 2, 1].map((stars) => {
-                        const count = selectedPlace.reviews.filter((r) => r.rating === stars).length;
-                        const pct =
-                          selectedPlace.reviewsCount > 0
-                            ? (count / selectedPlace.reviewsCount) * 100
-                            : 0;
-                        return (
-                          <div key={stars} className="flex items-center gap-1.5 text-[10px] text-slate-500">
-                            <span className="w-2">{stars}</span>
-                            <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-amber-400 rounded-full"
-                                style={{ width: `${pct}%` }}
-                              />
+                      {/* Bars */}
+                      <div className="flex-1 space-y-1">
+                        {[5, 4, 3, 2, 1].map((stars) => {
+                          const count = selectedPlace.reviews.filter((r) => r.rating === stars).length;
+                          const pct =
+                            selectedPlace.reviewsCount > 0
+                              ? (count / selectedPlace.reviewsCount) * 100
+                              : 0;
+                          return (
+                            <div key={stars} className="flex items-center gap-1.5 text-[10px] text-slate-500">
+                              <span className="w-2">{stars}</span>
+                              <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-amber-400 rounded-full"
+                                  style={{ width: `${pct}%` }}
+                                />
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-center space-y-2">
+                      <div className="w-10 h-10 rounded-full bg-amber-50 text-amber-500 border border-amber-200 mx-auto flex items-center justify-center font-bold text-base">
+                        ★
+                      </div>
+                      <h4 className="font-bold text-slate-900 text-sm">
+                        0 avaliações de moradores
+                      </h4>
+                      <p className="text-xs text-slate-600 max-w-xs mx-auto">
+                        Empresas cadastradas começam com 0 avaliações. Moradores e vizinhos avaliam e deixam suas notas aqui!
+                      </p>
+                    </div>
+                  )}
 
                   {/* Button to open review form */}
                   {!showReviewForm ? (
@@ -812,7 +866,7 @@ export const GooglePlacePanel: React.FC<GooglePlacePanelProps> = ({
                       className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
                     >
                       <Star className="w-4 h-4 fill-white" />
-                      <span>Avaliar este estabelecimento</span>
+                      <span>{selectedPlace.reviewsCount === 0 ? 'Seja o primeiro morador a avaliar' : 'Avaliar como morador'}</span>
                     </button>
                   ) : (
                     /* INLINE REVIEW FORM */
@@ -900,46 +954,57 @@ export const GooglePlacePanel: React.FC<GooglePlacePanelProps> = ({
 
                   {/* Reviews List */}
                   <div className="space-y-3 pt-2">
-                    {selectedPlace.reviews.map((rev) => (
-                      <div key={rev.id} className="border-b border-slate-100 pb-3 space-y-1.5">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-full bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center uppercase">
-                              {rev.author.charAt(0)}
-                            </div>
-                            <div>
-                              <div className="font-bold text-xs text-slate-900 leading-none">
-                                {rev.author}
-                              </div>
-                              {rev.userRole && (
-                                <div className="text-[10px] text-slate-400 mt-0.5">
-                                  {rev.userRole}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="flex items-center text-amber-400">
-                            {[1, 2, 3, 4, 5].map((s) => (
-                              <Star
-                                key={s}
-                                className={`w-3 h-3 ${
-                                  s <= rev.rating
-                                    ? 'fill-amber-400 text-amber-400'
-                                    : 'text-slate-200'
-                                }`}
-                              />
-                            ))}
-                          </div>
-                        </div>
-
-                        <p className="text-xs text-slate-600 leading-relaxed pl-9">
-                          {rev.comment}
+                    {selectedPlace.reviews.length === 0 ? (
+                      <div className="py-6 px-4 text-center rounded-xl bg-slate-50 border border-dashed border-slate-200">
+                        <p className="text-xs text-slate-500">
+                          Nenhum morador avaliou este local ainda.
                         </p>
-
-                        <div className="text-[10px] text-slate-400 pl-9">{rev.date}</div>
+                        <p className="text-[11px] text-slate-400 mt-1">
+                          Clique no botão acima para deixar sua primeira opinião!
+                        </p>
                       </div>
-                    ))}
+                    ) : (
+                      selectedPlace.reviews.map((rev) => (
+                        <div key={rev.id} className="border-b border-slate-100 pb-3 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="w-7 h-7 rounded-full bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center uppercase">
+                                {rev.author.charAt(0)}
+                              </div>
+                              <div>
+                                <div className="font-bold text-xs text-slate-900 leading-none">
+                                  {rev.author}
+                                </div>
+                                {rev.userRole && (
+                                  <div className="text-[10px] text-slate-400 mt-0.5">
+                                    {rev.userRole}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center text-amber-400">
+                              {[1, 2, 3, 4, 5].map((s) => (
+                                <Star
+                                  key={s}
+                                  className={`w-3 h-3 ${
+                                    s <= rev.rating
+                                      ? 'fill-amber-400 text-amber-400'
+                                      : 'text-slate-200'
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                          </div>
+
+                          <p className="text-xs text-slate-600 leading-relaxed pl-9">
+                            {rev.comment}
+                          </p>
+
+                          <div className="text-[10px] text-slate-400 pl-9">{rev.date}</div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
               )}
