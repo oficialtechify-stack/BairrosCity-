@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Place, CategoryType, DistanceFilter, DateFilter, UserLocation, Review, UserProfile } from './types';
+import { Place, CategoryType, DistanceFilter, DateFilter, UserLocation, Review, UserProfile, Company } from './types';
+import { CATEGORY_CONFIG } from './data/initialPlaces';
 import { calculateDistance } from './utils/distance';
 import { MapComponent, MapLayerType } from './components/Map';
 import { GoogleMapsRail } from './components/GoogleMapsRail';
@@ -574,7 +575,7 @@ export default function App() {
               }
             }}
             onOpenRegisterEvent={() => {
-              setIsEventRegisterOpen(true);
+              setIsRegisterOpen(true);
             }}
             onOpenAuth={handleGoogleDirectLogin}
             onGoogleSignIn={handleGoogleDirectLogin}
