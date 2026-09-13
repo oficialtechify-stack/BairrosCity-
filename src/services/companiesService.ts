@@ -343,3 +343,56 @@ export async function deleteCompanyFromFirestore(companyId: string, userId?: str
   console.log(`[Firestore] Company ${companyId} completely removed.`);
 }
 
+/**
+ * Completely clean all registered companies from Firestore and local caches as requested by user.
+ * Deletes all documents in 'companies' collection and all company pins in 'places'.
+ */
+export async function cleanAllRegisteredCompaniesFromFirestore(): Promise<{ companiesDeleted: number; placesDeleted: number }> {
+  let companiesDeleted = 0;
+  let placesDeleted = 0;
+
+  try {
+    // 1. Delete all documents in `companies`
+    const companiesSnap = await getDocs(collection(db, COMPANIES_COLLECTION));
+    for (const docSnap of companiesSnap.docs) {
+      try {
+        await deleteDoc(doc(db, COMPANIES_COLLECTION, docSnap.id));
+        companiesDeleted++;
+      } catch (err) {
+        console.warn(`Could not delete company doc ${docSnap.id}:`, err);
+      }
+    }
+
+    // 2. Delete all registered company documents in `places`
+    const placesSnap = await getDocs(collection(db, 'places'));
+    for (const docSnap of placesSnap.docs) {
+      const data = docSnap.data();
+      // If it's a registered company or has an ownerId or was created by user
+      if (data.isRegisteredCompany || data.ownerId || data.userId || docSnap.id.startsWith('comp-')) {
+        try {
+          await deleteDoc(doc(db, 'places', docSnap.id));
+          placesDeleted++;
+        } catch (err) {
+          console.warn(`Could not delete place doc ${docSnap.id}:`, err);
+        }
+      }
+    }
+
+    // 3. Clear local storage caches
+    try {
+      localStorage.removeItem('bairroscity_places_backup');
+      localStorage.removeItem('bairroscity_active_companies');
+      localStorage.removeItem('bairroscity_company_draft');
+      localStorage.removeItem('bairromap_companies');
+    } catch (e) {
+      console.warn('Could not clear local storage caches:', e);
+    }
+
+    console.log(`[Firestore] Cleaned all registered companies: ${companiesDeleted} companies, ${placesDeleted} places.`);
+  } catch (err) {
+    console.error('[Firestore] Error while wiping registered companies:', err);
+  }
+
+  return { companiesDeleted, placesDeleted };
+}
+

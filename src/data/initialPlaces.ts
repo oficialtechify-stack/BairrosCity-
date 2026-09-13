@@ -444,5 +444,7 @@ export const DEFAULT_COUNCIL_MEMBERS: Record<string, {
   }
 };
 
-// O usuário solicitou limpar todas as empresas mock para que as próprias empresas reais se cadastrem no banco
-export const INITIAL_PLACES: Place[] = [];
+import { GOOGLE_MAPS_RECIFE_POIS } from './googleMapsPois';
+
+// Pontos de interesse oficiais do Google Maps (Parques, Hospitais, Faculdades, Escolas, Shoppings, UPAs)
+export const INITIAL_PLACES: Place[] = GOOGLE_MAPS_RECIFE_POIS;

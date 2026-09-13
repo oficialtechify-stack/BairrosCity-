@@ -5,3 +5,46 @@
   transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.4, 1) !important;
   will-change: transform;
 }
+
+/* Custom Google Maps Floating Preview Tooltip */
+.leaflet-tooltip.gmaps-preview-tooltip {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+.leaflet-tooltip.gmaps-preview-tooltip::before {
+  display: none !important;
+}
+
+.leaflet-popup.gmaps-preview-popup .leaflet-popup-content-wrapper {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  padding: 0 !important;
+}
+
+.leaflet-popup.gmaps-preview-popup .leaflet-popup-content {
+  margin: 0 !important;
+  line-height: normal !important;
+}
+
+.leaflet-popup.gmaps-preview-popup .leaflet-popup-tip {
+  background: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+}
+
+/* Clean Google Maps pin hover transition */
+.google-maps-poi-marker {
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+  cursor: pointer;
+}
+
+.google-maps-poi-marker:hover {
+  transform: scale(1.18);
+  z-index: 1000 !important;
+}

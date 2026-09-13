@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { StreetViewThumbnail } from './StreetViewThumbnail';
 import { StreetViewNode } from '../data/streetViewData';
+import { getGooglePoiColor, getGooglePoiSvg, buildGoogleMapsPreviewCard } from '../utils/googleMapsPoiHelper';
 
 export type MapLayerType = 'roadmap' | 'satellite' | 'terrain' | 'dark';
 
@@ -662,192 +663,92 @@ export const MapComponent: React.FC<MapProps> = ({
 
     markersGroup.clearLayers();
 
-    // Zoom-level thresholds:
-    // zoom < 14: Regional / Metropolitan overview (Recife, Olinda, Jaboatão, etc.)
-    // -> HIDE company markers to eliminate visual clutter ("não poluir o mapa"),
-    //    except if a specific place is actively selected by the user.
-    // 14 <= zoom < 15: Approaching neighborhood
-    // -> Render compact, minimalist pins (24px colored circles without wide 180px text boxes)
-    //    only for places inside the visible viewport (+ padding).
-    // zoom >= 15: Street / local neighborhood level ("se estiver perto")
-    // -> Render full Google Maps style pins with logo/photo, verified badge, and company label.
+    // Zoom and viewport rules:
+    // - Registered user companies: only shown when zoomed in close (zoom >= 14) or selected,
+    //   respecting user request ("não quero que as empresas apareçam assim no mapa, só se estiver perto para não poluir o mapa").
+    // - Public POIs (parques, escolas, hospitais, dentistas, ginásios, shoppings): visible across all zooms (>= 11)
+    //   with authentic Google Maps circular pins and crisp labels, matching user screenshots!
     const zoom = currentZoom;
     const isFarOut = zoom < 14;
-    const isIntermediate = zoom >= 14 && zoom < 15;
     const mapBounds = map.getBounds();
 
     places.forEach((place) => {
       const isSelected = selectedPlace?.id === place.id;
+      const isRegistered = Boolean(place.isRegisteredCompany);
 
-      // 1. Regional view: completely hide pins unless selected
-      if (isFarOut && !isSelected) {
+      // 1. Registered companies are hidden at far zoom unless actively selected
+      if (isFarOut && isRegistered && !isSelected) {
         return;
       }
 
-      // 2. Viewport visibility filter with generous padding (places far off-screen are skipped)
+      // 2. Viewport culling with generous buffer
       const placeLatLng = L.latLng(place.lat, place.lng);
-      if (!isSelected && !mapBounds.pad(0.2).contains(placeLatLng)) {
+      if (!isSelected && !mapBounds.pad(0.3).contains(placeLatLng)) {
         return;
       }
 
-      const config = CATEGORY_CONFIG[place.category] || CATEGORY_CONFIG.restaurant;
-      const svgIcon = CATEGORY_SVGS[place.category] || CATEGORY_SVGS.restaurant;
+      const poiColor = getGooglePoiColor(place);
+      const poiSvg = getGooglePoiSvg(place);
       const logoOrPhoto = place.logoUrl || place.imageUrl;
       const hasLogoPhoto = Boolean(logoOrPhoto);
 
-      const displayCategory =
-        place.customCategory?.trim() ||
-        (place.subCategory &&
-        place.subCategory !== 'Geral' &&
-        place.subCategory !== 'Empresa Cadastrada' &&
-        place.subCategory !== 'Empresa Local'
-          ? place.subCategory
-          : '') ||
-        config.name ||
-        place.category;
+      // Style label according to active map layer (satellite/dark vs roadmap)
+      const isDarkMap = activeLayer === 'satellite' || activeLayer === 'dark';
+      const labelColor = isDarkMap ? '#ffffff' : '#1e293b';
+      const textHalo = isDarkMap
+        ? '-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 2px 4px rgba(0,0,0,0.9)'
+        : '-1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff, 0 1px 3px rgba(0,0,0,0.3)';
 
-      const popupHtml = `
-        <div style="font-family: inherit; width: 220px; padding: 4px; color: #0f172a;">
-          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
-            ${hasLogoPhoto ? `
-              <img 
-                src="${logoOrPhoto}" 
-                alt="${place.name}" 
-                style="width: 44px; height: 44px; border-radius: 10px; object-fit: cover; border: 1.5px solid #e2e8f0; flex-shrink: 0;"
-                referrerpolicy="no-referrer"
-              />
-            ` : `
-              <div style="width: 44px; height: 44px; border-radius: 10px; background-color: ${config.color}; display: flex; align-items: center; justify-content: center; color: #fff; flex-shrink: 0;">
-                ${svgIcon}
-              </div>
-            `}
-            <div style="min-width: 0; flex: 1;">
-              <div style="font-weight: 800; font-size: 13px; line-height: 1.2; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                ${place.name}
-              </div>
-              <div style="font-size: 11px; color: #64748b; margin-top: 2px;">
-                ${displayCategory}
-              </div>
-              <div style="font-size: 10px; font-weight: 700; color: #16a34a; margin-top: 2px;">
-                ⭐ ${place.rating || 5.0} • ${place.neighborhood || 'Bairro'}
-              </div>
-            </div>
-          </div>
-          ${place.address ? `
-            <div style="font-size: 11px; color: #64748b; line-height: 1.3; margin-bottom: 6px;">
-              📍 ${place.address}
-            </div>
-          ` : ''}
-        </div>
-      `;
-
-      // 3. Compact mode at intermediate zoom (14 to 14.99): neat 24px dot, no overlapping labels
-      if (isIntermediate && !isSelected) {
-        const compactHtml = `
-          <div style="
-            position: relative;
-            cursor: pointer;
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            background-color: ${hasLogoPhoto ? '#ffffff' : (place.isRegisteredCompany ? '#84cc16' : config.color)};
-            border: 2px solid ${place.isRegisteredCompany ? '#84cc16' : '#ffffff'};
-            box-shadow: 0 2px 8px rgba(0,0,0,0.35);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            transition: transform 0.15s ease;
-          " title="${place.name}">
-            ${hasLogoPhoto ? `
-              <img 
-                src="${logoOrPhoto}" 
-                alt="${place.name}" 
-                style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block;"
-                referrerpolicy="no-referrer"
-              />
-            ` : `
-              <div style="transform: scale(0.7); display: flex; align-items: center; justify-content: center; color: #ffffff;">
-                ${svgIcon}
-              </div>
-            `}
-          </div>
-        `;
-
-        const marker = L.marker([place.lat, place.lng], {
-          icon: L.divIcon({
-            className: 'google-place-pin-compact',
-            html: compactHtml,
-            iconSize: [24, 24],
-            iconAnchor: [12, 12],
-          }),
-          zIndexOffset: place.isRegisteredCompany ? 350 : 150,
-        }).addTo(markersGroup);
-
-        marker.bindTooltip(
-          `<div style="font-weight: 800; font-size: 11px; color: #0f172a; padding: 2px 4px; white-space: nowrap;">${place.name}</div>`,
-          { direction: 'top', offset: [0, -12] }
-        );
-
-        marker.bindPopup(popupHtml, { maxWidth: 260, offset: [0, -12] });
-
-        marker.on('click', () => {
-          onSelectPlace(place);
-          map.flyTo([place.lat, place.lng], 16, { duration: 0.6 });
-        });
-
-        return;
-      }
-
-      // 4. Full pin mode (zoom >= 15 or isSelected)
       const pinHtml = `
-        <div style="
-          position: relative;
-          cursor: pointer;
-          display: flex;
+        <div class="google-maps-poi-marker" style="
+          display: inline-flex;
           align-items: center;
-          gap: 7px;
-          transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
-          transform: scale(${isSelected ? 1.25 : 1});
-          z-index: ${isSelected ? 1300 : (hasLogoPhoto ? 600 : 300)};
+          gap: 6px;
+          cursor: pointer;
+          user-select: none;
+          pointer-events: auto;
+          transform: scale(${isSelected ? 1.22 : 1});
+          transition: transform 0.18s ease;
+          z-index: ${isSelected ? 1400 : (isRegistered ? 500 : 300)};
         ">
-          <!-- Pin Icon Circle / Company Logo Photo Badge -->
+          <!-- Circular Google Maps Pin Icon -->
           <div style="
             position: relative;
-            width: ${isSelected ? '44px' : (hasLogoPhoto ? '38px' : '28px')};
-            height: ${isSelected ? '44px' : (hasLogoPhoto ? '38px' : '28px')};
-            min-width: ${isSelected ? '44px' : (hasLogoPhoto ? '38px' : '28px')};
+            width: ${isSelected ? '34px' : '28px'};
+            height: ${isSelected ? '34px' : '28px'};
+            min-width: ${isSelected ? '34px' : '28px'};
             border-radius: 50%;
-            background-color: #ffffff;
+            background-color: ${hasLogoPhoto && isRegistered ? '#ffffff' : poiColor};
             color: #ffffff;
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.38);
-            border: 2.5px solid ${isSelected ? '#1a73e8' : (place.isRegisteredCompany ? '#84cc16' : '#ffffff')};
+            box-shadow: 0 3px 8px rgba(0,0,0,0.35);
+            border: 2px solid ${isRegistered ? '#84cc16' : '#ffffff'};
+            ${isSelected ? 'outline: 3.5px solid #1a73e8; outline-offset: 2px;' : ''}
             overflow: hidden;
-            ${isSelected ? 'outline: 3px solid #1a73e8; outline-offset: 2px;' : ''}
+            flex-shrink: 0;
           ">
-            ${hasLogoPhoto ? `
+            ${hasLogoPhoto && isRegistered ? `
               <img 
                 src="${logoOrPhoto}" 
                 alt="${place.name}" 
-                style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block;"
+                style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" 
                 referrerpolicy="no-referrer"
               />
             ` : `
-              <div style="width: 100%; height: 100%; background-color: ${config.color}; display: flex; align-items: center; justify-content: center;">
-                ${svgIcon}
+              <div style="display: flex; align-items: center; justify-content: center; transform: scale(${isSelected ? 1.05 : 0.9}); color: #ffffff;">
+                ${poiSvg}
               </div>
             `}
 
-            ${place.isRegisteredCompany ? `
+            ${isRegistered ? `
               <div style="
                 position: absolute;
                 bottom: -1px;
                 right: -1px;
-                width: 13px;
-                height: 13px;
+                width: 12px;
+                height: 12px;
                 background-color: #84cc16;
                 border: 1.5px solid #ffffff;
                 border-radius: 50%;
@@ -855,29 +756,26 @@ export const MapComponent: React.FC<MapProps> = ({
                 align-items: center;
                 justify-content: center;
                 color: #0f172a;
-                font-size: 8px;
+                font-size: 7.5px;
                 font-weight: 900;
               ">✓</div>
             ` : ''}
           </div>
 
-          <!-- Pin Label with Company Name -->
+          <!-- Google Maps Text Label with Halo -->
           <div style="
-            background-color: ${isSelected ? '#1a73e8' : 'rgba(15, 23, 42, 0.92)'};
-            backdrop-filter: blur(6px);
-            color: #ffffff;
-            padding: 3px 8px;
-            border-radius: 7px;
-            font-size: 11px;
+            font-family: Roboto, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-size: ${isSelected ? '12px' : '11px'};
             font-weight: 700;
+            line-height: 1.15;
+            color: ${labelColor};
+            text-shadow: ${textHalo};
             white-space: nowrap;
-            box-shadow: 0 3px 8px rgba(0,0,0,0.3);
-            border: 1px solid ${isSelected ? '#ffffff' : 'rgba(255,255,255,0.25)'};
-            pointer-events: auto;
-            max-width: 180px;
+            max-width: 220px;
             overflow: hidden;
             text-overflow: ellipsis;
             letter-spacing: -0.01em;
+            padding-right: 4px;
           ">
             ${place.name}
           </div>
@@ -886,21 +784,35 @@ export const MapComponent: React.FC<MapProps> = ({
 
       const marker = L.marker([place.lat, place.lng], {
         icon: L.divIcon({
-          className: 'google-place-pin',
+          className: 'google-place-pin-root',
           html: pinHtml,
           iconSize: [0, 0],
-          iconAnchor: [16, 16],
+          iconAnchor: [14, 14],
         }),
-        zIndexOffset: isSelected ? 1200 : (place.isRegisteredCompany ? 500 : 100),
+        zIndexOffset: isSelected ? 1200 : (isRegistered ? 500 : 150),
       }).addTo(markersGroup);
 
-      marker.bindPopup(popupHtml, { maxWidth: 260, offset: [0, -14] });
+      // Requirement: SE colocar a seta ou o dedo em cima aparece a previa (Hover & Touch Preview)
+      const previewHtml = buildGoogleMapsPreviewCard(place);
+      marker.bindTooltip(previewHtml, {
+        className: 'gmaps-preview-tooltip',
+        direction: 'top',
+        offset: [0, -18],
+        opacity: 1,
+        interactive: true,
+        sticky: false,
+      });
 
+      // Requirement: se clicar abre e mostra o local (Click to open full Place Panel)
       marker.on('click', () => {
         onSelectPlace(place);
+        map.flyTo([place.lat, place.lng], Math.max(map.getZoom(), 16), {
+          duration: 0.6,
+          easeLinearity: 0.25,
+        });
       });
     });
-  }, [places, selectedPlace, onSelectPlace, currentZoom, mapCenter]);
+  }, [places, selectedPlace, onSelectPlace, currentZoom, mapCenter, activeLayer]);
 
   // Smooth Fly to mapCenterCoord when requested
   useEffect(() => {

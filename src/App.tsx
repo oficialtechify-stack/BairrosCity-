@@ -19,7 +19,8 @@ import { LoginGate } from './components/LoginGate';
 import { GoogleMapsMobileNav } from './components/GoogleMapsMobileNav';
 import { useRealtimeLocation } from './hooks/useRealtimeLocation';
 import { subscribePlaces, createPlaceInFirestore, addReviewToFirestore, deletePlaceFromFirestore } from './services/placesService';
-import { subscribeCompanies, deleteCompanyFromFirestore } from './services/companiesService';
+import { subscribeCompanies, deleteCompanyFromFirestore, cleanAllRegisteredCompaniesFromFirestore } from './services/companiesService';
+import { GOOGLE_MAPS_RECIFE_POIS } from './data/googleMapsPois';
 import { auth, db, signOut, onAuthStateChanged, getDoc, doc } from './lib/firebase';
 import { loginWithGoogle } from './services/authService';
 import { Home, Users, MapPin, Plus, Navigation, LogIn, CheckCircle2, LogOut } from 'lucide-react';
@@ -119,6 +120,18 @@ export default function App() {
   const [filterSavedOnly, setFilterSavedOnly] = useState<boolean>(false);
   const [mapCenterCoord, setMapCenterCoord] = useState<{ lat: number; lng: number; zoom?: number } | null>(null);
 
+  // Cleanup test mock companies on startup as explicitly requested by user:
+  // "limpe todas as empresas cadastradas do site"
+  useEffect(() => {
+    const hasWiped = localStorage.getItem('bairroscity_cleaned_companies_v5');
+    if (!hasWiped) {
+      cleanAllRegisteredCompaniesFromFirestore().then(({ companiesDeleted, placesDeleted }) => {
+        console.log(`[Startup] Cleaned ${companiesDeleted} companies and ${placesDeleted} places.`);
+        localStorage.setItem('bairroscity_cleaned_companies_v5', 'true');
+      }).catch((e) => console.warn('Clean error:', e));
+    }
+  }, []);
+
   // Subscribe directly to Firebase Firestore `companies` collection (Item 2: EXIBIR TODAS AS EMPRESAS NO MAPA)
   useEffect(() => {
     setLoadingPlaces(true);
@@ -199,23 +212,15 @@ export default function App() {
           };
         });
 
-        if (placesFromCompanies.length > 0) {
-          setPlaces(placesFromCompanies);
-          setLoadingPlaces(false);
-        } else {
-          // Fallback to places collection if companies collection is empty
-          subscribePlaces((firestorePlaces) => {
-            setPlaces(firestorePlaces);
-            setLoadingPlaces(false);
-          });
-        }
+        // Always merge authentic Google Maps POIs (hospitais, escolas, parques, shoppings) with user registered companies
+        const combinedPlaces = [...GOOGLE_MAPS_RECIFE_POIS, ...placesFromCompanies];
+        setPlaces(combinedPlaces);
+        setLoadingPlaces(false);
       },
       (err) => {
         console.error('[Firestore] Erro ao carregar empresas:', err);
-        subscribePlaces((firestorePlaces) => {
-          setPlaces(firestorePlaces);
-          setLoadingPlaces(false);
-        });
+        setPlaces(GOOGLE_MAPS_RECIFE_POIS);
+        setLoadingPlaces(false);
       }
     );
 
