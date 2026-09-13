@@ -104,6 +104,11 @@ export const MapComponent: React.FC<MapProps> = ({
   const isUserInteractingRef = useRef<boolean>(false);
   const [layersMenuOpen, setLayersMenuOpen] = useState<boolean>(false);
   const [mapReady, setMapReady] = useState<boolean>(false);
+  const [currentZoom, setCurrentZoom] = useState<number>(16);
+  const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number }>({
+    lat: -8.0645,
+    lng: -34.9855,
+  });
 
   // Initial center: if company user, center immediately on company location!
   const initialCenter: [number, number] = (isCompanyUser && companyPlace)
@@ -149,13 +154,30 @@ export const MapComponent: React.FC<MapProps> = ({
     });
     map.on('touchstart', stopFollowing);
 
-    map.on('dragend', resumeInteraction);
+    const updateViewInfo = () => {
+      if (!map) return;
+      setCurrentZoom(map.getZoom());
+      const center = map.getCenter();
+      setMapCenter({ lat: center.lat, lng: center.lng });
+    };
+
+    map.on('dragend', () => {
+      resumeInteraction();
+      updateViewInfo();
+    });
     map.on('moveend', (e: any) => {
       if (e.originalEvent) {
         resumeInteraction();
       }
+      updateViewInfo();
     });
-    map.on('touchend', resumeInteraction);
+    map.on('zoomend', () => {
+      updateViewInfo();
+    });
+    map.on('touchend', () => {
+      resumeInteraction();
+      updateViewInfo();
+    });
 
     const container = mapContainerRef.current;
     if (container) {
@@ -640,13 +662,144 @@ export const MapComponent: React.FC<MapProps> = ({
 
     markersGroup.clearLayers();
 
+    // Zoom-level thresholds:
+    // zoom < 14: Regional / Metropolitan overview (Recife, Olinda, Jaboatão, etc.)
+    // -> HIDE company markers to eliminate visual clutter ("não poluir o mapa"),
+    //    except if a specific place is actively selected by the user.
+    // 14 <= zoom < 15: Approaching neighborhood
+    // -> Render compact, minimalist pins (24px colored circles without wide 180px text boxes)
+    //    only for places inside the visible viewport (+ padding).
+    // zoom >= 15: Street / local neighborhood level ("se estiver perto")
+    // -> Render full Google Maps style pins with logo/photo, verified badge, and company label.
+    const zoom = currentZoom;
+    const isFarOut = zoom < 14;
+    const isIntermediate = zoom >= 14 && zoom < 15;
+    const mapBounds = map.getBounds();
+
     places.forEach((place) => {
       const isSelected = selectedPlace?.id === place.id;
+
+      // 1. Regional view: completely hide pins unless selected
+      if (isFarOut && !isSelected) {
+        return;
+      }
+
+      // 2. Viewport visibility filter with generous padding (places far off-screen are skipped)
+      const placeLatLng = L.latLng(place.lat, place.lng);
+      if (!isSelected && !mapBounds.pad(0.2).contains(placeLatLng)) {
+        return;
+      }
+
       const config = CATEGORY_CONFIG[place.category] || CATEGORY_CONFIG.restaurant;
       const svgIcon = CATEGORY_SVGS[place.category] || CATEGORY_SVGS.restaurant;
       const logoOrPhoto = place.logoUrl || place.imageUrl;
       const hasLogoPhoto = Boolean(logoOrPhoto);
 
+      const displayCategory =
+        place.customCategory?.trim() ||
+        (place.subCategory &&
+        place.subCategory !== 'Geral' &&
+        place.subCategory !== 'Empresa Cadastrada' &&
+        place.subCategory !== 'Empresa Local'
+          ? place.subCategory
+          : '') ||
+        config.name ||
+        place.category;
+
+      const popupHtml = `
+        <div style="font-family: inherit; width: 220px; padding: 4px; color: #0f172a;">
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+            ${hasLogoPhoto ? `
+              <img 
+                src="${logoOrPhoto}" 
+                alt="${place.name}" 
+                style="width: 44px; height: 44px; border-radius: 10px; object-fit: cover; border: 1.5px solid #e2e8f0; flex-shrink: 0;"
+                referrerpolicy="no-referrer"
+              />
+            ` : `
+              <div style="width: 44px; height: 44px; border-radius: 10px; background-color: ${config.color}; display: flex; align-items: center; justify-content: center; color: #fff; flex-shrink: 0;">
+                ${svgIcon}
+              </div>
+            `}
+            <div style="min-width: 0; flex: 1;">
+              <div style="font-weight: 800; font-size: 13px; line-height: 1.2; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                ${place.name}
+              </div>
+              <div style="font-size: 11px; color: #64748b; margin-top: 2px;">
+                ${displayCategory}
+              </div>
+              <div style="font-size: 10px; font-weight: 700; color: #16a34a; margin-top: 2px;">
+                ⭐ ${place.rating || 5.0} • ${place.neighborhood || 'Bairro'}
+              </div>
+            </div>
+          </div>
+          ${place.address ? `
+            <div style="font-size: 11px; color: #64748b; line-height: 1.3; margin-bottom: 6px;">
+              📍 ${place.address}
+            </div>
+          ` : ''}
+        </div>
+      `;
+
+      // 3. Compact mode at intermediate zoom (14 to 14.99): neat 24px dot, no overlapping labels
+      if (isIntermediate && !isSelected) {
+        const compactHtml = `
+          <div style="
+            position: relative;
+            cursor: pointer;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background-color: ${hasLogoPhoto ? '#ffffff' : (place.isRegisteredCompany ? '#84cc16' : config.color)};
+            border: 2px solid ${place.isRegisteredCompany ? '#84cc16' : '#ffffff'};
+            box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            transition: transform 0.15s ease;
+          " title="${place.name}">
+            ${hasLogoPhoto ? `
+              <img 
+                src="${logoOrPhoto}" 
+                alt="${place.name}" 
+                style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block;"
+                referrerpolicy="no-referrer"
+              />
+            ` : `
+              <div style="transform: scale(0.7); display: flex; align-items: center; justify-content: center; color: #ffffff;">
+                ${svgIcon}
+              </div>
+            `}
+          </div>
+        `;
+
+        const marker = L.marker([place.lat, place.lng], {
+          icon: L.divIcon({
+            className: 'google-place-pin-compact',
+            html: compactHtml,
+            iconSize: [24, 24],
+            iconAnchor: [12, 12],
+          }),
+          zIndexOffset: place.isRegisteredCompany ? 350 : 150,
+        }).addTo(markersGroup);
+
+        marker.bindTooltip(
+          `<div style="font-weight: 800; font-size: 11px; color: #0f172a; padding: 2px 4px; white-space: nowrap;">${place.name}</div>`,
+          { direction: 'top', offset: [0, -12] }
+        );
+
+        marker.bindPopup(popupHtml, { maxWidth: 260, offset: [0, -12] });
+
+        marker.on('click', () => {
+          onSelectPlace(place);
+          map.flyTo([place.lat, place.lng], 16, { duration: 0.6 });
+        });
+
+        return;
+      }
+
+      // 4. Full pin mode (zoom >= 15 or isSelected)
       const pinHtml = `
         <div style="
           position: relative;
@@ -741,59 +894,13 @@ export const MapComponent: React.FC<MapProps> = ({
         zIndexOffset: isSelected ? 1200 : (place.isRegisteredCompany ? 500 : 100),
       }).addTo(markersGroup);
 
-      const displayCategory =
-        place.customCategory?.trim() ||
-        (place.subCategory &&
-        place.subCategory !== 'Geral' &&
-        place.subCategory !== 'Empresa Cadastrada' &&
-        place.subCategory !== 'Empresa Local'
-          ? place.subCategory
-          : '') ||
-        config.name ||
-        place.category;
-
-      const popupHtml = `
-        <div style="font-family: inherit; width: 220px; padding: 4px; color: #0f172a;">
-          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
-            ${hasLogoPhoto ? `
-              <img 
-                src="${logoOrPhoto}" 
-                alt="${place.name}" 
-                style="width: 44px; height: 44px; border-radius: 10px; object-fit: cover; border: 1.5px solid #e2e8f0; flex-shrink: 0;"
-                referrerpolicy="no-referrer"
-              />
-            ` : `
-              <div style="width: 44px; height: 44px; border-radius: 10px; background-color: ${config.color}; display: flex; align-items: center; justify-content: center; color: #fff; flex-shrink: 0;">
-                ${svgIcon}
-              </div>
-            `}
-            <div style="min-width: 0; flex: 1;">
-              <div style="font-weight: 800; font-size: 13px; line-height: 1.2; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                ${place.name}
-              </div>
-              <div style="font-size: 11px; color: #64748b; margin-top: 2px;">
-                ${displayCategory}
-              </div>
-              <div style="font-size: 10px; font-weight: 700; color: #16a34a; margin-top: 2px;">
-                ⭐ ${place.rating || 5.0} • ${place.neighborhood || 'Bairro'}
-              </div>
-            </div>
-          </div>
-          ${place.address ? `
-            <div style="font-size: 11px; color: #64748b; line-height: 1.3; margin-bottom: 6px;">
-              📍 ${place.address}
-            </div>
-          ` : ''}
-        </div>
-      `;
-
       marker.bindPopup(popupHtml, { maxWidth: 260, offset: [0, -14] });
 
       marker.on('click', () => {
         onSelectPlace(place);
       });
     });
-  }, [places, selectedPlace, onSelectPlace]);
+  }, [places, selectedPlace, onSelectPlace, currentZoom, mapCenter]);
 
   // Smooth Fly to mapCenterCoord when requested
   useEffect(() => {
@@ -830,6 +937,29 @@ export const MapComponent: React.FC<MapProps> = ({
     <div className={`relative w-full h-full ${className}`}>
       {/* Map Canvas */}
       <div ref={mapContainerRef} className="w-full h-full z-0 outline-none" />
+
+      {/* Discreet pill notification when map is zoomed far out so the user knows the map is decluttered and can zoom in easily */}
+      {currentZoom < 14 && places.length > 0 && !selectedPlace && !selectingLocation && (
+        <div 
+          id="zoom-in-to-view-places-pill"
+          className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[400] px-3.5 py-2 rounded-full bg-slate-950/90 text-white shadow-2xl border border-slate-700/80 flex items-center gap-2.5 backdrop-blur-md text-xs pointer-events-auto transition-all"
+        >
+          <div className="w-2 h-2 rounded-full bg-lime-400 animate-pulse shrink-0" />
+          <span className="text-slate-300 font-medium text-[11px] sm:text-xs">Aproxime o mapa para ver empresas locais</span>
+          <button
+            type="button"
+            onClick={() => {
+              if (mapRef.current) {
+                const c = mapRef.current.getCenter();
+                mapRef.current.flyTo(c, 15.5, { duration: 0.8 });
+              }
+            }}
+            className="px-2.5 py-1 rounded-full bg-lime-400 hover:bg-lime-300 text-slate-950 font-black text-[10px] sm:text-[11px] cursor-pointer transition-all shadow-sm active:scale-95 shrink-0"
+          >
+            Aproximar
+          </button>
+        </div>
+      )}
 
       {/* Floating Selection Banner when Picking Location */}
       {selectingLocation && (
